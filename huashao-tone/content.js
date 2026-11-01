@@ -1897,7 +1897,7 @@
     state.currentComment = null;
     state.currentRewrite = null;
     state.manualRewrite = null;
-    state.currentMethod = { ...recommendation, output, composer, sourceText };
+    state.currentMethod = { ...recommendation, output, composer, sourceText, options: { ...options, recommendation } };
     state.methodSuggestedText = sourceText;
     ensureHost();
     state.host.dataset.mode = "method";
@@ -2145,6 +2145,10 @@
     queueMicrotask(() => verifySingleWrite(composer, restoredText));
     requestAnimationFrame(() => verifySingleWrite(composer, restoredText));
     setTimeout(() => verifySingleWrite(composer, restoredText), 180);
+    if (undo.methodOptions && showMethodRecommendation(composer, { ...undo.methodOptions, composer, sourceText: restoredText })) {
+      state.shadow.querySelector(".zili-status").textContent = "已恢复原文，可以换一种问法";
+      return;
+    }
     showStatus("已恢复润色前的内容");
   }
 
@@ -2260,6 +2264,8 @@
       expectedText: candidate.sourceText,
       undoSource: candidate.sourceText
     });
+    // 记住这组候选卡：恢复原文后还能接着换一张。
+    if (state.rewriteUndo) state.rewriteUndo.methodOptions = candidate.options;
     state.currentMethod = null;
   }
 
