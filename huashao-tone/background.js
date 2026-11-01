@@ -17,8 +17,18 @@ const MODEL_ENGINE_KEY = "modelEngine";
 const LEGACY_DEEPSEEK_KEY = "deepseekApiKey";
 const responseCache = new Map();
 
+// 平台以发请求的标签页为准，不信页面自己报的，用来给小红书、抖音换成平台表情码。
+function senderHost(sender) {
+  try {
+    return new URL(sender?.tab?.url || "").hostname;
+  } catch (_) {
+    return "";
+  }
+}
+
 function responseCacheKey(mode, message, settings, provider, model) {
   return JSON.stringify({
+    platform: globalThis.ZiliModelClient?.platformFromHost?.(message.platformHost) || "",
     provider,
     model,
     mode,
@@ -668,6 +678,7 @@ async function optimize(message) {
       replyBrief: mode === "comment" ? String(message.replyBrief || "").slice(0, 300) : "",
       pageContext: String(message.pageContext || "").slice(0, 800),
       context: String(message.context || "").slice(0, 300),
+      platformHost: String(message.platformHost || "").slice(0, 200),
       manualTrigger: message.manualTrigger === true,
       lengthTier: ["short", "medium", "long"].includes(message.lengthTier)
         ? message.lengthTier
@@ -901,6 +912,7 @@ async function analyzeScreenshot(message) {
     const visionResult = await globalThis.ZiliModelClient.generateVision({
       imageDataUrl,
       requestedMode: requestedMode === "verify" ? "verify_extract" : requestedMode,
+      platformHost: String(message.platformHost || "").slice(0, 200),
       settings
     }, {
       apiKey,
@@ -1111,7 +1123,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 
   if (message?.type === "OPTIMIZE") {
-    optimize(message).then(sendResponse);
+    optimize({ ...message, platformHost: senderHost(sender) }).then(sendResponse);
     return true;
   }
 
@@ -1126,7 +1138,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 
   if (message?.type === "ANALYZE_SCREENSHOT") {
-    analyzeScreenshot(message).then(sendResponse);
+    analyzeScreenshot({ ...message, platformHost: senderHost(sender) }).then(sendResponse);
     return true;
   }
 

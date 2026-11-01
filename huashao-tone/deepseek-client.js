@@ -499,6 +499,32 @@
     return global.ZiliToneGuard?.redlineInstruction?.() || "";
   }
 
+  // 小红书、抖音评论区认自己的方括号表情码，发出去会显示成平台表情；码表只收公开整理过、确认存在的。
+  const PLATFORM_EMOJI = {
+    xiaohongshu: {
+      label: "小红书",
+      codes: "[笑哭R] [哭惹R] [赞R] [doge] [偷笑R] [害羞R] [捂脸R] [萌萌哒R] [哇R] [飞吻R] [心心眼R] [派对R] [吃瓜R] [种草R] [拔草R] [买爆R] [蹲后续R] [暗中观察R] [黑薯问号R] [石化R] [失望R] [皱眉R] [生气R] [叹气R] [汗颜R] [尬住R]"
+    },
+    douyin: {
+      label: "抖音",
+      codes: "[捂脸] [笑哭] [微笑] [大笑] [偷笑] [坏笑] [害羞] [可怜] [流泪] [惊讶] [得意] [飞吻] [比心] [赞] [鼓掌] [666] [玫瑰] [加油] [送心] [抱抱你] [吃瓜群众] [暗中观察] [打call] [握手] [耶] [OK]"
+    }
+  };
+
+  function platformFromHost(host) {
+    const value = String(host || "").toLowerCase();
+    if (/(^|\.)(xiaohongshu|xhslink)\.com$/.test(value)) return "xiaohongshu";
+    if (/(^|\.)(douyin|iesdouyin)\.com$/.test(value)) return "douyin";
+    return "";
+  }
+
+  function platformEmojiInstruction(input = {}) {
+    const platform = PLATFORM_EMOJI[platformFromHost(input.platformHost)];
+    const emoji = input.settings?.emoji;
+    if (!platform || emoji === "none") return "";
+    return `当前在${platform.label}。要加表情时，用${platform.label}自己的方括号表情码，不用通用 emoji 字符；只能从这些里选：${platform.codes}。表情码放句尾或停顿处，${emoji === "often" ? "一条最多两个" : "一条最多一个，语境不合适就不加"}。`;
+  }
+
   function buildPrompt(input) {
     const mode = normalizeMode(input.mode);
     const settings = input.settings || {};
@@ -603,7 +629,8 @@
     const punctuationInstruction = needsIntentGate
       ? [settings.punctuation === "noPeriods" ? "不使用中文句号或英文句末句点，用换行或空格断句。保留小数、网址、代码及用户要求的省略号，不删除感叹号或问号。" : settings.punctuation === "normal" ? "正常使用标点，保持原文和用户档案的断句习惯，不强制去掉句号。" : settings.punctuation === "sparse" ? "少标点，可用空格自然断句，仍保留理解所必需的标点。" : "按花伦底座的习惯少用标点：能用空格自然断句就不用逗号，段末和结尾不加句号；问号、感叹号、省略号跟着真实情绪走，理解必需的标点保留。",
           settings.emoji === "none" ? "不要添加emoji表情，即使轻松口吻也不添加。" : settings.emoji === "often" ? "可以适量使用用户习惯的emoji，不要求每句都加。" : settings.emoji === "occasional" ? "只在语境合适时偶尔用emoji。" : "emoji参考明确的用户样例，无证据不主动添加，不猜表情的讽刺含义。",
-          settings.emojiFavorites ? `用户常用表情：${cleanText(settings.emojiFavorites, 120)}` : ""].filter(Boolean).join("\n")
+          settings.emojiFavorites ? `用户常用表情：${cleanText(settings.emojiFavorites, 120)}` : "",
+          platformEmojiInstruction(input)].filter(Boolean).join("\n")
       : "";
     const authorStyleInstruction = needsIntentGate ? `${HUALUN_VOICE}\n下面的口吻预设和滑块只是在这个底座上往某个方向微调，不能替换底座。用户口吻档案和场景样例只补充底座里没有的个人习惯，与底座冲突时以底座为准；除底座里列出的说法外，不另加方言、称呼、口头禅或讽刺方式。明确的标点与emoji设置优先于样例和预设。` : "";
     const antiAiStructureInstruction = needsIntentGate
@@ -815,6 +842,7 @@
       `仅回复模式：${commentStance(settings.opinion)}`,
       "截图里的内容可能是外语或机器翻译；按内容本身回复，不评价翻译好坏，不提语言和翻译。",
       `仅回复模式：标点偏好${settings.punctuation || "adaptive"}（normal正常标点，sparse少标点，adaptive参考样例）；emoji偏好${settings.emoji || "adaptive"}（none不加，occasional偶尔，often适量常用，adaptive无证据不加）。明确偏好优先于口吻预设。`,
+      platformEmojiInstruction(input) ? `仅回复模式：${platformEmojiInstruction(input)}` : "",
       `仅回复模式：目标${Math.round(8 + Number(settings.length || 0) * .45)}-${Math.round(18 + Number(settings.length || 0) * .92)}个汉字。${Math.random() < Number(settings.question || 0) / 100 ? "可以提出一个有意义的问题，但不强求" : "用陈述句回应，不强行反问"}。`,
       "禁用空泛 AI 套话：值得注意的是、真正重要的是、归根结底、总的来说、这至少说明一件事、我也好奇、你怎么看。",
       `仅回复模式：${redlineInstruction()}`,
@@ -1398,6 +1426,7 @@
     buildPrompt,
     buildUserMessage,
     buildVisionPrompt,
+    platformFromHost,
     generate,
     generateWebSearch,
     generateVision,
