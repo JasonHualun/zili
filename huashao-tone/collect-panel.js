@@ -58,7 +58,7 @@
       shot: 'M9.82843 5L7.82843 7H4V19H20V7H16.1716L14.1716 5H9.82843ZM9 3H15L17 5H21C21.5523 5 22 5.44772 22 6V20C22 20.5523 21.5523 21 21 21H3C2.44772 21 2 20.5523 2 20V6C2 5.44772 2.44772 5 3 5H7L9 3ZM12 18C8.96243 18 6.5 15.5376 6.5 12.5C6.5 9.46243 8.96243 7 12 7C15.0376 7 17.5 9.46243 17.5 12.5C17.5 15.5376 15.0376 18 12 18ZM12 16C13.933 16 15.5 14.433 15.5 12.5C15.5 10.567 13.933 9 12 9C10.067 9 8.5 10.567 8.5 12.5C8.5 14.433 10.067 16 12 16Z',
       warn: 'M12 22C6.47715 22 2 17.5228 2 12C2 6.47715 6.47715 2 12 2C17.5228 2 22 6.47715 22 12C22 17.5228 17.5228 22 12 22ZM12 20C16.4183 20 20 16.4183 20 12C20 7.58172 16.4183 4 12 4C7.58172 4 4 7.58172 4 12C4 16.4183 7.58172 20 12 20ZM11 15H13V17H11V15ZM11 7H13V13H11V7Z'
     };
-    box.innerHTML = `<div class="c-card"><div class="c-kinds" data-kinds><span>收什么</span></div><div class="c-item"><img data-favicon alt=""><div class="c-meta"><strong data-title></strong><em data-host></em></div></div><p class="c-excerpt" data-excerpt></p></div><div class="c-note"><textarea data-note maxlength="500" rows="1" placeholder="为什么收它？写一句备注（可不填）"></textarea><label class="c-shot" title="把现在屏幕上看到的画面也一起存下"><input type="checkbox" data-shot>${icon(ICON.shot)}<span>带截图</span></label></div><div class="c-alert" data-alert hidden>${icon(ICON.warn)}<p data-alert-text></p><button type="button" data-retry>重试</button></div><button type="button" class="c-main" data-intent="save">${icon(ICON.save)}<span data-main-label>收纳整个网页</span><small data-agent></small></button><div class="c-more"><button type="button" data-intent="topic">${icon(ICON.topic)}做成选题</button><button type="button" data-queue-add>${icon(ICON.queue)}攒着一起收</button></div><section data-queue hidden><header><span data-queue-count></span><button type="button" data-queue-clear>清空</button></header><ul></ul><div class="c-more"><button type="button" class="strong" data-queue-send="save">全部收纳</button><button type="button" data-queue-send="topic">全部做选题</button></div></section><section data-jobs hidden><header>最近收纳</header><ul></ul></section>`;
+    box.innerHTML = `<div class="c-card"><div class="c-kinds" data-kinds><span>收什么</span></div><p class="c-hint" data-kind-hint hidden></p><div class="c-item"><img data-favicon alt=""><div class="c-meta"><strong data-title></strong><em data-host></em></div></div><p class="c-excerpt" data-excerpt></p></div><div class="c-note"><textarea data-note maxlength="500" rows="1" placeholder="为什么收它？写一句备注（可不填）"></textarea><label class="c-shot" title="把现在屏幕上看到的画面也一起存下"><input type="checkbox" data-shot>${icon(ICON.shot)}<span>带截图</span></label></div><div class="c-alert" data-alert hidden>${icon(ICON.warn)}<p data-alert-text></p><button type="button" data-retry>重试</button></div><button type="button" class="c-main" data-intent="save">${icon(ICON.save)}<span data-main-label>收纳整个网页</span><small data-agent></small></button><div class="c-more"><button type="button" data-intent="topic">${icon(ICON.topic)}做成选题</button><button type="button" data-queue-add>${icon(ICON.queue)}攒着一起收</button></div><section data-queue hidden><header><span data-queue-count></span><button type="button" data-queue-clear>清空</button></header><ul></ul><div class="c-more"><button type="button" class="strong" data-queue-send="save">全部收纳</button><button type="button" data-queue-send="topic">全部做选题</button></div></section><section data-jobs hidden><header>最近收纳</header><ul></ul></section>`;
     const css = document.createElement('style');
     css.textContent = `.companion-chat [data-collect]{display:grid;gap:10px}
 .companion-chat:not([data-view=collect]) [data-collect],.companion-chat[data-view=collect] [data-tools],.companion-chat[data-view=collect] [data-messages],.companion-chat[data-view=collect] [data-proposal],.companion-chat[data-view=collect] [data-shortcuts],.companion-chat[data-view=collect] form{display:none!important}
@@ -69,6 +69,8 @@
 .companion-chat .c-kinds button{flex:1;min-width:0;padding:4px 2px!important;border-radius:8px!important;background:transparent!important;color:#5d6a75!important;font-size:12px!important;white-space:nowrap}
 .companion-chat .c-kinds button[aria-pressed=true]{background:#fff!important;color:var(--zili-accent-strong,#426b91)!important;font-weight:600;box-shadow:0 1px 2px #00000014}
 .companion-chat .c-kinds button:disabled{opacity:.4;cursor:default}
+.companion-chat .c-hint{margin:-2px 2px 0;color:#8a929a;font-size:11px}
+.companion-chat .c-hint[hidden]{display:none}
 .companion-chat .c-item{display:flex;align-items:center;gap:8px;min-width:0}
 .companion-chat .c-item img{width:20px;height:20px;flex:none;border-radius:5px}
 .companion-chat .c-item img[hidden]{display:none}
@@ -84,7 +86,7 @@
 .companion-chat .c-shot input{display:none}
 .companion-chat .c-shot:has(input:checked){color:#fff;background:var(--zili-accent,#557fa8)}
 .companion-chat .c-main{display:flex;align-items:center;justify-content:center;gap:6px;padding:10px 12px!important;border-radius:12px!important;color:#fff!important;background:var(--zili-accent,#557fa8)!important;font-size:14px!important;font-weight:600}
-.companion-chat .c-main small{font-weight:400;opacity:.75;font-size:11px}
+.companion-chat .c-main small{font-weight:400;color:#fff!important;opacity:.85;font-size:11px}
 .companion-chat .c-main:hover{background:var(--zili-accent-strong,#426b91)!important}
 .companion-chat .c-main:disabled{opacity:.55}
 .companion-chat .c-more{display:grid;grid-template-columns:1fr 1fr;gap:6px}
@@ -157,6 +159,12 @@
         b.onclick = () => renderItem(kind);
         row.append(b);
       });
+      // 灰掉的选项直接用一句话说清怎么才能选，不靠鼠标悬停。
+      const missing = Object.keys(KIND_LABELS).filter(kind => !sources.some(item => item.kind === kind));
+      q('[data-kind-hint]').hidden = !missing.includes('selection');
+      q('[data-kind-hint]').textContent = missing.includes('post')
+        ? '这一页只能整页收。想只收一段：先在页面上用鼠标选中那段文字，再点小猫打开收纳。'
+        : '想只收一段：先在页面上用鼠标选中那段文字，再点小猫打开收纳。';
       renderItem(sources[0].kind);
     }
 
@@ -237,7 +245,7 @@
       const r = await send({ type: 'ZILI_COLLECT_DETECT' });
       const agent = r?.ok ? r.agents.find(a => a.id === r.selected) : null;
       ready = Boolean(agent);
-      q('[data-agent]').textContent = agent ? `· ${agent.label}` : '';
+      q('[data-agent]').textContent = agent ? `交给 ${agent.label}` : '';
       setBusy(false);
       if (!r?.ok && friendlyError(r?.error) !== r?.error) alert(friendlyError(r.error));
       else if (!r?.ok) alert(`${r?.error || '字里桥没有响应'}。可以先点「攒着一起收」，连上后再一起发。`);
