@@ -5,6 +5,7 @@
   const form = $("[data-workspace]");
   const status = text => { $("[data-status]").textContent = text; };
   const micSelect = $("[data-mic]");
+  const interruptButton = $("[data-interrupt]");
   let session = null;
 
   // 麦克风：Mac 连着 iPhone 时系统默认输入常被切到手机，这里列出全部麦克风，默认挑 MacBook 自带的，记住上次的选择。
@@ -168,17 +169,35 @@
     const socket = new WebSocket(prepared.url);
     const level = $("[data-level] i");
     let ready = false, tutorLine = null;
+    // 节奏由程序把关：语音模型常在一个知识点上反复让人造句。老师连说三轮，就临时加一条“换新内容”的命令，换完再撤掉。
+    let tutorTurns = 0, forcingSwitch = false;
+    const updateInstructions = extra => socket.send(JSON.stringify({
+      type: "session.update",
+      session: { instructions: extra ? `${prepared.instructions}\n${extra}` : prepared.instructions }
+    }));
+    const SWITCH_NOW = "【现在立刻执行】这个知识点已经练了三轮，必须换了。你下一次说话：先用一句中文简短点评学生刚才说的，然后直接教一个全新的英语句子，用一个和刚才不同的语法点或表达，按“英文—中文翻译—一个重点—来，跟我说”的顺序。不要再让学生用刚才的句型造句。";
     // 上课记录：老师和学生说的每一句都记下来，每轮结束整节课保存一次，中途关窗也不丢。
     const lessonId = String(Date.now());
     const lessonLines = [];
     const saveLesson = () => void chrome.runtime.sendMessage({ type: "ZILI_TUTOR_LESSON_SAVE", id: lessonId, lines: lessonLines });
-    session = { socket, stream, mic, player };
+    // 老师说话时麦克风是关着的（防止喇叭声音被收回去把它自己掐断），想插话就点“打断”：停掉声音、取消这次回答，麦克风马上打开。
+    const interrupt = () => {
+      if (!player.speaking()) return;
+      player.interrupt();
+      if (socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify({ type: "response.cancel" }));
+      if (tutorLine?.textContent) { lessonLines.push(`老师：${tutorLine.textContent}`); saveLesson(); }
+      tutorLine = null;
+      interruptButton.hidden = true;
+      status("已打断，你说吧");
+    };
+    session = { socket, stream, mic, player, interrupt };
 
     capture.port.onmessage = ({ data }) => {
       const pcm = new Int16Array(data);
       let peak = 0;
       for (let i = 0; i < pcm.length; i += 16) peak = Math.max(peak, Math.abs(pcm[i]));
       level.style.width = `${Math.min(100, peak / 120)}%`;
+      interruptButton.hidden = !player.speaking();
       if (ready && !player.speaking() && socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify({ type: "input_audio_buffer.append", audio: toBase64(data) }));
     };
     socket.onopen = () => socket.send(JSON.stringify({
@@ -199,6 +218,7 @@
       let event;
       try { event = JSON.parse(data); } catch (_) { return; }
       if (event.type === "session.updated") {
+        if (ready) return; // 中途换节奏命令也会回 session.updated，只有第一次才算开课。
         ready = true;
         toggle.disabled = false;
         setRunning(true);
@@ -224,7 +244,18 @@
           socket.send(JSON.stringify({ type: "response.create" }));
         });
       } else if (event.type === "response.done") {
-        if (tutorLine?.textContent) { lessonLines.push(`老师：${tutorLine.textContent}`); saveLesson(); }
+        if (tutorLine?.textContent) {
+          lessonLines.push(`老师：${tutorLine.textContent}`);
+          saveLesson();
+          if (forcingSwitch) {
+            forcingSwitch = false;
+            tutorTurns = 0;
+            updateInstructions("");
+          } else if (++tutorTurns >= 3) {
+            forcingSwitch = true;
+            updateInstructions(SWITCH_NOW);
+          }
+        }
         tutorLine = null;
       } else if (event.type === "error") {
         status(event.error?.message || "通义返回了错误");
@@ -247,6 +278,7 @@
     void mic.close();
     player.close();
     $("[data-level] i").style.width = "0";
+    interruptButton.hidden = true;
     toggle.disabled = false;
     setRunning(false);
   }
@@ -256,6 +288,12 @@
     toggle.disabled = false;
     status(error.message || "启动失败，请重试");
   }
+  interruptButton.onclick = () => session?.interrupt();
+  document.addEventListener("keydown", event => {
+    if (event.code !== "Space" || !session || event.target.closest("input, textarea, select, button")) return;
+    event.preventDefault();
+    session.interrupt();
+  });
   toggle.onclick = () => {
     if (session) { stop(); status("已结束，本次对话不会保存"); return; }
     start().catch(failed);
