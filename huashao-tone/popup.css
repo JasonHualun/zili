@@ -375,4 +375,4 @@ details[open] > .fold-body { animation: fold-in .22s ease; }
 .collect-deploy { justify-self: start; padding: 6px 14px; border: 0; border-radius: 8px; color: #fff; background: var(--accent); font-size: 12px; cursor: pointer; }
 .collect-deploy:hover { background: var(--accent-strong); }
 .collect-setup [hidden], .collect-setup small:empty { display: none; }
-.collect-setup .collect-note { color: var(--muted); font-size: 11px; }
+.collect-setup .collect-note { color: var(--muted); font-size: 11px; white-space: pre-wrap; }

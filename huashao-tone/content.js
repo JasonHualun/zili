@@ -781,6 +781,10 @@
         .zili-status.is-busy { color: #426b91; }
         .zili-method-context { margin: -2px 12px 10px; padding: 9px 10px; border: 1px solid rgba(85,127,168,.14); border-radius: 10px; color: #536575; background: var(--zili-accent-soft); font-size: 10px; line-height: 1.48; }
         .zili-method-context[hidden] { display: none; }
+        .zili-method-picks { display: flex; flex-wrap: wrap; gap: 6px; margin: -4px 12px 10px; }
+        .zili-method-picks[hidden] { display: none; }
+        .zili-method-picks button { padding: 4px 10px; border: 1px solid rgba(85,127,168,.22); border-radius: 999px; color: #536575; background: #fff; font: inherit; font-size: 11px; cursor: pointer; }
+        .zili-method-picks button[aria-pressed="true"] { border-color: var(--zili-accent, #557fa8); color: #fff; background: var(--zili-accent, #557fa8); }
         .zili-route { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: -4px 14px 8px; color: #8a8276; font-size: 10px; }
         .zili-route[hidden] { display: none; }
         .zili-route-select { min-width: 52px; padding: 3px 5px; border: 1px solid rgba(85,127,168,.20); border-radius: 7px; outline: 0; color: #426b91; background: #fff; font-size: 10px; font-weight: 680; }
@@ -938,6 +942,7 @@
         </div>
         <div class="zili-status">等你把意思写清楚一点</div>
         <div class="zili-method-context" hidden></div>
+        <div class="zili-method-picks" hidden></div>
         <div class="zili-route" hidden>
           <select class="zili-route-select" aria-label="切换高亮任务">
             <option data-selection-mode="comment" value="comment">回复</option>
@@ -1712,6 +1717,36 @@
     if (!context) return;
     context.hidden = !text;
     context.textContent = text || "";
+    if (!text) renderMethodPicks(null);
+  }
+
+  // 架构师的 2–3 张候选卡：点哪张，下面的 Prompt 就换成哪张的写法。
+  function renderMethodPicks(options) {
+    const box = state.shadow?.querySelector(".zili-method-picks");
+    if (!box) return;
+    const picks = options?.picks || [];
+    box.hidden = picks.length < 2;
+    box.replaceChildren(...picks.map(pick => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.textContent = pick.method.name;
+      button.title = pick.reason;
+      button.setAttribute("aria-pressed", String(pick.method.id === options.recommendation.id));
+      button.addEventListener("click", () => {
+        showMethodRecommendation(options.composer, { ...options, recommendation: pick.method, reason: pick.reason });
+      });
+      return button;
+    }));
+  }
+
+  // 架构师要知道你和 Agent 聊到哪了：取页面主体最近一段文字（去掉正在打的草稿）。
+  function chatContextFor(sourceText) {
+    const root = document.querySelector("main") || document.body;
+    return String(root?.innerText || "")
+      .replace(sourceText, "")
+      .replace(/\n{3,}/g, "\n\n")
+      .trim()
+      .slice(-3000);
   }
 
   function methodRecommendationFor(composer) {
@@ -1783,7 +1818,7 @@
     const response = await send({
       type: "ZILI_ARCHITECT_ROUTE",
       text: sourceText,
-      clarification: state.architectClarification || ""
+      context: chatContextFor(sourceText)
     }, { timeoutMs: 25_000 });
     if (routeId !== state.architectRouteId || getText(composer) !== sourceText || !architectModeFor(composer)) {
       return { ok: false, error: "stale" };
@@ -1798,6 +1833,8 @@
       showMethodRecommendation(composer, {
         recommendation: response.method,
         reason: response.reason,
+        picks: response.picks,
+        task: response.task,
         result: response,
         sourceText,
         architect: true
@@ -1830,7 +1867,7 @@
         : "这段话还不够像一个方法问题，我先不打扰");
       return false;
     }
-    const output = ZiliMethodLibrary.renderPrompt(recommendation, sourceText);
+    const output = ZiliMethodLibrary.renderPrompt(recommendation, options.task || sourceText);
     clearRewriteUndo();
     state.activeComposer = composer;
     state.currentComment = null;
@@ -1846,6 +1883,7 @@
       : `推荐「${recommendation.name}」· 本地判断，不调用模型`;
     state.shadow.querySelector(".zili-status").classList.remove("is-busy");
     setMethodContext(`${recommendation.summary}\n${options.reason || recommendation.reason}，适合在 ${activePlatform.label} 里先把这件事想清楚。`);
+    renderMethodPicks({ ...options, composer, sourceText, recommendation });
     state.shadow.querySelector(".zili-output").textContent = output;
     state.shadow.querySelector(".zili-intent").textContent = recommendation.category;
     state.shadow.querySelector(".zili-confidence").textContent = options.architect ? "AI 判断" : "本地匹配";

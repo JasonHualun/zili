@@ -282,9 +282,18 @@ async function pageCleanRequest(message) {
 
 // One click: filter with the saved instruction (default "只留 AI 相关"); click again to restore.
 // 本地收纳：打开设置就问字里桥这台电脑有哪些 Agent、用户允许了哪几个、收纳文件夹在哪。
-// 连不上时只给一个“一键部署”按钮：插件自己不能运行本地程序，也不知道自己被下载到哪，
-// 所以复制相对路径的部署命令，用户先在终端进入字里文件夹再粘贴回车一次。
-const BRIDGE_INSTALL_COMMAND = "/usr/bin/python3 zili-bridge/install.py";
+// 连不上或没授权时只给一个按钮：插件自己不能运行本地程序，也不知道自己被下载到哪，
+// 所以复制一段话让用户发给自己电脑上的 AI 助手，由助手找到字里文件夹、代跑安装脚本。
+function bridgeSetupPrompt() {
+  return [
+    "请帮我装好「字里」浏览器插件的本地收纳功能（字里桥）。请你直接在我电脑上操作，不要让我自己开终端：",
+    "1. 找到我从 GitHub 下载的字里文件夹：里面同时有 zili-bridge/install.py 和 huashao-tone/manifest.json。先在「文稿」「下载」「桌面」和用户主目录下找，找不到再问我放在哪。",
+    "2. 在这个文件夹里运行 python3 zili-bridge/install.py --scan，把它找到的 AI 助手告诉我（这一步只看、不改任何东西）。",
+    `3. 再运行 python3 zili-bridge/install.py --allow all --id ${chrome.runtime.id}（--allow all 表示允许找到的所有 AI 助手；我说只要其中几个时，改成 --allow claude,codex 这种写法）。`,
+    "4. 用大白话告诉我结果：允许了哪些助手、收纳的东西会存在哪个文件夹。",
+    "这个脚本只写几个登记文件和一个后台服务，不安装软件、不联网。除此之外不要改动我电脑上的别的东西。"
+  ].join("\n");
+}
 function matchLocalAgents(manual) {
   const select = form.collectAgent;
   const setup = form.collectSetup;
@@ -303,13 +312,13 @@ function matchLocalAgents(manual) {
     form.collectMatch.disabled = false;
     setup.querySelector("[data-collect-next]").hidden = true;
     if (!r?.ok || !r.agents.length) {
-      const found = r?.found?.length ? `找到了 ${r.found.map(a => a.label).join("、")}，但还没允许字里调用。` : "这台电脑上没找到字里认识的命令行 Agent（Claude Code、Codex、Gemini CLI、Qwen Code、OpenCode、Hermes）。";
+      const found = r?.found?.length ? `字里桥已经扫描过这台电脑，找到 ${r.found.map(a => a.label).join("、")}，但还没允许字里调用。` : "字里桥已经扫描过这台电脑，没找到能用的 AI 助手（Claude Code、Codex、Gemini CLI、Qwen Code、OpenCode、Hermes）。收纳要靠它们来整理，先装其中一个，再点刷新。";
       select.replaceChildren(new Option(r?.ok ? (r.found?.length ? "还没授权 Agent" : "没找到本地 Agent") : "字里桥没连上"));
       select.disabled = true;
       note.textContent = r?.ok
-        ? `${found}重新运行一次部署命令，按提示允许要用的 Agent，再点刷新。`
-        : "字里桥没连上（它负责把网页材料交给本地 Agent）。点下面部署一次就好。";
-      detail.textContent = r?.ok ? "" : `原因：${r?.error || runtimeError || "插件后台没有回应"}`;
+        ? `${found}点下面的按钮，把那段话发给你的 AI 助手，让它帮你允许。`
+        : "还没装字里桥。它负责把网页内容交给你电脑上的 AI 助手（Claude Code、Codex、Hermes 等）。点下面的按钮，把那段话发给你的 AI 助手，它会帮你装好。";
+      detail.textContent = r?.ok ? "" : `技术原因：${r?.error || runtimeError || "插件后台没有回应"}`;
       deploy.hidden = Boolean(r?.ok && !r.found?.length);
       setup.hidden = false;
       flash(r?.ok ? "没找到本地 Agent" : "字里桥没连上");
@@ -327,10 +336,10 @@ function matchLocalAgents(manual) {
 
 async function deployBridge() {
   try {
-    await navigator.clipboard.writeText(BRIDGE_INSTALL_COMMAND);
+    await navigator.clipboard.writeText(bridgeSetupPrompt());
     form.collectSetup.querySelector("[data-collect-next]").hidden = false;
   } catch (_) {
-    form.collectSetup.querySelector("[data-collect-detail]").textContent = `复制失败，请手动复制：${BRIDGE_INSTALL_COMMAND}`;
+    form.collectSetup.querySelector("[data-collect-detail]").textContent = `复制失败，请手动复制下面这段话：\n${bridgeSetupPrompt()}`;
   }
 }
 

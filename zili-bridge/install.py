@@ -4,6 +4,8 @@
 
 用法：python3 install.py                      一步步问你（推荐）
       python3 install.py --allow claude,codex --folder ~/Documents/字里收纳 [--skill 名字]   不问，直接按参数装
+      python3 install.py --allow all            不问，允许找到的所有 Agent，文件夹和 Skill 沿用上次（没有就用默认）
+      python3 install.py --scan                 只看：列出这台电脑上找到的 Agent 和已加载字里的浏览器，什么都不改
       python3 install.py --id <插件ID>          手动指定插件 ID（自动找不到时）
       python3 install.py --uninstall           删除登记和后台服务（收纳文件夹里的内容不动）
 """
@@ -95,8 +97,11 @@ def choose_config():
     if not found:
         print("这台电脑上没找到字里认识的命令行 Agent（%s）。装好其中一个再运行本脚本。" % names)
         sys.exit(1)
-    if arg("--allow") is not None:
-        allowed = [k for k in arg("--allow").split(",") if k in found]
+    # 让用户的 AI 助手代装时用 --allow：全程不问问题，助手不用应付交互输入。
+    unattended = arg("--allow") is not None
+    if unattended:
+        wanted = arg("--allow").strip().lower()
+        allowed = list(found) if wanted == "all" else [k for k in wanted.split(",") if k in found]
     else:
         print("找到了这些 Agent。字里只会调用你允许的，而且只让它在收纳文件夹里读写文件：")
         allowed = []
@@ -108,10 +113,12 @@ def choose_config():
     if not allowed:
         print("一个 Agent 都没允许，没有安装。")
         sys.exit(1)
-    folder = arg("--folder") or ask("收纳文件夹放在哪？[回车用 %s] " % (old.get("folder") or DEFAULT_FOLDER), str(old.get("folder") or DEFAULT_FOLDER))
+    folder = arg("--folder") or (str(old.get("folder") or DEFAULT_FOLDER) if unattended else None) or ask("收纳文件夹放在哪？[回车用 %s] " % (old.get("folder") or DEFAULT_FOLDER), str(old.get("folder") or DEFAULT_FOLDER))
     folder = Path(folder).expanduser().resolve()
     folder.mkdir(parents=True, exist_ok=True)
     skill = arg("--skill")
+    if skill is None and unattended:
+        skill = old.get("skill") or ""
     if skill is None:
         skill = ask("有自己的收纳 Skill 吗？有就输入名字，没有直接回车（用字里自带的整理规则）：[%s] " % (old.get("skill") or "无"), old.get("skill") or "")
     return {"allowed": allowed, "folder": str(folder), "skill": skill.strip()}
@@ -132,6 +139,12 @@ def main():
     manual = [arg("--id")] if arg("--id") else []
     targets = {d: manual or find_extension_ids(d) for d in BROWSER_DIRS if d.is_dir()}
     targets = {d: ids for d, ids in targets.items() if ids}
+    if "--scan" in sys.argv:
+        bridge = load_bridge()
+        found = bridge.scan_agents()
+        print("找到的 AI 助手：%s" % ("、".join("%s（%s）" % (bridge.AGENTS[k]["label"], p) for k, p in found.items()) or "无"))
+        print("已加载字里的浏览器：%s" % ("、".join("%s（插件 %s）" % (d.name, ", ".join(ids)) for d, ids in targets.items()) or "无"))
+        return
     if not targets:
         print("没在任何浏览器里找到已加载的字里插件。请先在扩展管理页加载 %s，或用 --id 指定插件ID。" % EXTENSION_DIR)
         sys.exit(1)
