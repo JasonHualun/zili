@@ -112,7 +112,7 @@
       return true;
     }
 
-    const signals = [
+    let signals = [
       element.id,
       element.getAttribute("name"),
       element.getAttribute("placeholder"),
@@ -121,6 +121,11 @@
       element.getAttribute("inputmode"),
       element.closest("form")?.getAttribute("action")
     ].filter(Boolean).join(" ");
+    // AI 聊天网页的大输入框有时就叫 search（如 DeepSeek 的 name="search"），那是聊天框不是搜索框；
+    // 只在已识别的 AI 聊天站点、且是多行输入框时放过“搜索”类字样，密码、支付等照旧拦。
+    const aiChatBox = Boolean(globalThis.ZiliMethodLibrary?.platform(location.hostname))
+      && (element instanceof HTMLTextAreaElement || element.isContentEditable);
+    if (aiChatBox) signals = signals.replace(/搜索|search|query/gi, "");
     return /密码|验证码|信用卡|银行卡|支付|搜索|账号|邮箱|手机|地址|姓名|password|passcode|verification code|credit card|card number|payment|checkout|search|query|captcha|token|secret|username|email|phone|address|cvv|cvc/i.test(signals);
   }
 
