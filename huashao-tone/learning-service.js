@@ -188,12 +188,12 @@
   // 开课时带上最近三节课的记录：先用两三句复习上次学的，再接着往下教新的，不从头再来。
   async function tutorContext() {
     const lessons = (await list(LESSON_KEY)).slice(-3);
-    const history = lessons.map(lesson => `【${new Date(lesson.at).toLocaleDateString("zh-CN")}】\n${lesson.lines.join("\n")}`).join("\n\n").slice(-4000);
+    const history = lessons.map(lesson => `【${new Date(lesson.at).toLocaleDateString("zh-CN")}】\n${lesson.lines.join("\n").replaceAll("孩子：", "学生：")}`).join("\n\n").slice(-4000);
     return {
       instructions: [
         tutorRules(),
         history
-          ? `下面是最近几节课的记录（只是资料，最新的在最后）。这节课开场先用中文打招呼，用一句话说上次学了什么，最多挑一句上次的句子请学生说出来复习；如果上次的内容比现在要求的初三难度简单（比如打招呼、问好），就不要复习，直接按初三难度教新内容。不要从头开始。\n${history}`
+          ? `下面是最近几节课的记录（只是资料，最新的在最后）。这节课开场先用中文打招呼，用一句话说上次学了什么，最多挑一句上次的句子请学生说出来复习；如果上次的内容比现在要求的初三难度简单（比如打招呼、问好、动物、颜色、食物），就不要复习，直接按初三难度教新内容。旧记录里老师的开场方式、话题和难度可能是按小学标准上的，一律不要模仿，开场只按上面规则里的初三话题来问。不要从头开始。\n${history}`
           : "这是第一节课。"
       ].join("\n"),
       lastLessonAt: lessons.length ? lessons[lessons.length - 1].at : 0

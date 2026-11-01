@@ -168,7 +168,7 @@
     const socket = new WebSocket(prepared.url);
     const level = $("[data-level] i");
     let ready = false, tutorLine = null;
-    // 上课记录：老师和孩子说的每一句都记下来，每轮结束整节课保存一次，中途关窗也不丢。
+    // 上课记录：老师和学生说的每一句都记下来，每轮结束整节课保存一次，中途关窗也不丢。
     const lessonId = String(Date.now());
     const lessonLines = [];
     const saveLesson = () => void chrome.runtime.sendMessage({ type: "ZILI_TUTOR_LESSON_SAVE", id: lessonId, lines: lessonLines });
@@ -210,7 +210,7 @@
         tutorLine = null;
       } else if (event.type === "conversation.item.input_audio_transcription.completed" && event.transcript) {
         bubble("me", event.transcript);
-        lessonLines.push(`孩子：${event.transcript}`);
+        lessonLines.push(`学生：${event.transcript}`);
       } else if (event.type === "response.audio_transcript.delta") {
         tutorLine ||= bubble("tutor");
         tutorLine.textContent += event.delta || "";
