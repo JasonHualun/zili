@@ -646,8 +646,19 @@ function renderMethodCards() {
     name.textContent = method.name;
     const summary = document.createElement("small");
     summary.textContent = method.summary;
-    copy.title = method.category;
+    copy.title = "点开看完整提示词";
+    copy.tabIndex = 0;
+    copy.setAttribute("role", "button");
+    copy.setAttribute("aria-expanded", "false");
     copy.append(name, summary);
+
+    // 点开看这张卡实际会发出去的提示词；{draft}/{concept} 是写进去时才替换的占位。
+    const prompt = document.createElement("pre");
+    prompt.className = "method-card-prompt";
+    prompt.hidden = true;
+    prompt.textContent = method.prompt
+      .replaceAll("{draft}", "【你写的那句话】")
+      .replaceAll("{concept}", "【你要问的概念】");
 
     const actions = document.createElement("div");
     actions.className = "method-card-actions";
@@ -658,7 +669,7 @@ function renderMethodCards() {
       deleteButton.dataset.methodAction = "delete";
       actions.append(editButton, deleteButton);
     }
-    row.append(copy, actions);
+    row.append(copy, actions, prompt);
     form.methodCardList.appendChild(row);
   }
   form.methodCardState.textContent = "";
@@ -795,7 +806,19 @@ async function saveGeneratedMethodCard() {
   if (saved) closeMethodCardDialog();
 }
 
+function toggleMethodCardPrompt(copy) {
+  const prompt = copy.closest("[data-method-id]")?.querySelector(".method-card-prompt");
+  if (!prompt) return;
+  prompt.hidden = !prompt.hidden;
+  copy.setAttribute("aria-expanded", String(!prompt.hidden));
+}
+
 async function handleMethodCardListClick(event) {
+  const copy = event.target.closest(".method-card-copy");
+  if (copy) {
+    toggleMethodCardPrompt(copy);
+    return;
+  }
   const button = event.target.closest("[data-method-action]");
   const row = button?.closest("[data-method-id]");
   if (!button || !row) return;
@@ -1353,6 +1376,12 @@ async function init() {
   });
   form.addMethodCard.addEventListener("click", () => openMethodCardDialog());
   form.methodCardList.addEventListener("click", handleMethodCardListClick);
+  form.methodCardList.addEventListener("keydown", event => {
+    const copy = event.target.closest(".method-card-copy");
+    if (!copy || (event.key !== "Enter" && event.key !== " ")) return;
+    event.preventDefault();
+    toggleMethodCardPrompt(copy);
+  });
   form.methodCardForm.addEventListener("submit", submitMethodCard);
   form.saveMethodCard.addEventListener("click", () => void saveGeneratedMethodCard());
   form.cancelMethodCard.addEventListener("click", closeMethodCardDialog);

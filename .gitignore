@@ -17,3 +17,4 @@ huashao-tone/*.test.cjs
 huashao-tone/preview-server.cjs
 huashao-tone/scripts/
 huashao-tone/assets/*-source*.png
+.claude/
