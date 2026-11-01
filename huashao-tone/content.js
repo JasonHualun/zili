@@ -786,10 +786,21 @@
         .zili-status.is-busy { color: #426b91; }
         .zili-method-context { margin: -2px 12px 10px; padding: 9px 10px; border: 1px solid rgba(85,127,168,.14); border-radius: 10px; color: #536575; background: var(--zili-accent-soft); font-size: 10px; line-height: 1.48; }
         .zili-method-context[hidden] { display: none; }
-        .zili-method-picks { display: flex; flex-wrap: wrap; gap: 6px; margin: -4px 12px 10px; }
+        .zili-method-picks { display: grid; gap: 6px; margin: 0 14px 12px; }
         .zili-method-picks[hidden] { display: none; }
-        .zili-method-picks button { padding: 4px 10px; border: 1px solid rgba(85,127,168,.22); border-radius: 999px; color: #536575; background: #fff; font: inherit; font-size: 11px; cursor: pointer; }
-        .zili-method-picks button[aria-pressed="true"] { border-color: var(--zili-accent, #557fa8); color: #fff; background: var(--zili-accent, #557fa8); }
+        .zili-method-picks button { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 2px 10px; padding: 10px 12px; border: 1px solid rgba(85,127,168,.16); border-radius: 12px; color: var(--zili-text, #263848); background: #fff; font: inherit; text-align: left; cursor: pointer; transition: border-color .15s, background .15s; }
+        .zili-method-picks button:hover { border-color: rgba(85,127,168,.45); }
+        .zili-method-picks button strong { font-size: 13px; font-weight: 600; }
+        .zili-method-picks button span { grid-column: 1; color: #7d8996; font-size: 12px; line-height: 1.5; }
+        .zili-method-picks button i { grid-column: 2; grid-row: 1 / span 2; box-sizing: border-box; width: 16px; height: 16px; border: 1.5px solid rgba(85,127,168,.3); border-radius: 50%; }
+        .zili-method-picks button[aria-pressed="true"] { border-color: var(--zili-accent, #557fa8); background: var(--zili-accent-soft, #eef3f8); }
+        .zili-method-picks button[aria-pressed="true"] i { border: 4.5px solid var(--zili-accent, #557fa8); background: #fff; }
+        .zili-card[data-mode="method"] .zili-output { position: relative; max-height: 7.8em; overflow: hidden; font-size: 12.5px; color: #5d6a75; }
+        .zili-card[data-mode="method"] .zili-output::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 2.6em; background: linear-gradient(transparent, #fff); }
+        .zili-card[data-mode="method"] .zili-output.is-expanded { max-height: 40vh; overflow: auto; }
+        .zili-card[data-mode="method"] .zili-output.is-expanded::after { display: none; }
+        .zili-output-toggle { display: block; margin: -6px 14px 10px auto; padding: 2px 4px; border: 0; color: var(--zili-accent-strong, #426b91); background: none; font: inherit; font-size: 12px; cursor: pointer; }
+        .zili-output-toggle[hidden], .zili-card:not([data-mode="method"]) .zili-output-toggle { display: none; }
         .zili-route { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: -4px 14px 8px; color: #8a8276; font-size: 10px; }
         .zili-route[hidden] { display: none; }
         .zili-route-select { min-width: 52px; padding: 3px 5px; border: 1px solid rgba(85,127,168,.20); border-radius: 7px; outline: 0; color: #426b91; background: #fff; font-size: 10px; font-weight: 680; }
@@ -969,6 +980,7 @@
         <img class="zili-vision-preview" alt="本次识别的截图" hidden>
         <div class="zili-meta"><span class="zili-intent"></span><span class="zili-confidence"></span></div>
         <p class="zili-output"></p>
+        <button class="zili-output-toggle" type="button" hidden>展开完整提示词</button>
         <div class="zili-verify-details" hidden>
           <div class="zili-verify-block" data-verify-block="corrected"><strong>更准确的说法</strong><p></p></div>
           <div class="zili-verify-block" data-verify-block="evidence"><strong>关键依据</strong><p></p></div>
@@ -1729,13 +1741,17 @@
   function renderMethodPicks(options) {
     const box = state.shadow?.querySelector(".zili-method-picks");
     if (!box) return;
-    const picks = options?.picks || [];
-    box.hidden = picks.length < 2;
+    const picks = options?.picks?.length ? options.picks
+      : options?.recommendation ? [{ method: options.recommendation, reason: options.reason || options.recommendation.reason }] : [];
+    box.hidden = !picks.length;
     box.replaceChildren(...picks.map(pick => {
       const button = document.createElement("button");
+      const name = document.createElement("strong");
+      const reason = document.createElement("span");
       button.type = "button";
-      button.textContent = pick.method.name;
-      button.title = pick.reason;
+      name.textContent = pick.method.name;
+      reason.textContent = pick.reason || pick.method.summary;
+      button.append(name, document.createElement("i"), reason);
       button.setAttribute("aria-pressed", String(pick.method.id === options.recommendation.id));
       button.addEventListener("click", () => {
         showMethodRecommendation(options.composer, { ...options, recommendation: pick.method, reason: pick.reason });
@@ -1886,16 +1902,26 @@
     ensureHost();
     state.host.dataset.mode = "method";
     state.shadow.querySelector(".zili-card").dataset.mode = "method";
+    const pickCount = options.picks?.length || 1;
     state.shadow.querySelector(".zili-status").textContent = options.architect
-      ? `架构师推荐「${recommendation.name}」`
-      : `推荐「${recommendation.name}」· 本地判断，不调用模型`;
+      ? (pickCount > 1 ? `架构师给你挑了 ${pickCount} 种问法，选一种发给 ${activePlatform.label}` : `架构师推荐这样问 ${activePlatform.label}`)
+      : "可以换个问法：本地判断，不调用模型";
     state.shadow.querySelector(".zili-status").classList.remove("is-busy");
-    setMethodContext(`${recommendation.summary}\n${options.reason || recommendation.reason}，适合在 ${activePlatform.label} 里先把这件事想清楚。`);
+    setMethodContext("");
     renderMethodPicks({ ...options, composer, sourceText, recommendation });
-    state.shadow.querySelector(".zili-output").textContent = output;
-    state.shadow.querySelector(".zili-intent").textContent = recommendation.category;
-    state.shadow.querySelector(".zili-confidence").textContent = options.architect ? "AI 判断" : "本地匹配";
-    state.shadow.querySelector(".zili-confidence").hidden = false;
+    const outputBox = state.shadow.querySelector(".zili-output");
+    const toggle = state.shadow.querySelector(".zili-output-toggle");
+    outputBox.textContent = output;
+    outputBox.classList.remove("is-expanded");
+    toggle.textContent = "展开完整提示词";
+    toggle.hidden = false;
+    toggle.onclick = () => {
+      const expanded = outputBox.classList.toggle("is-expanded");
+      toggle.textContent = expanded ? "收起" : "展开完整提示词";
+      positionHost();
+    };
+    state.shadow.querySelector(".zili-intent").textContent = "会写进聊天框的提示词";
+    state.shadow.querySelector(".zili-confidence").hidden = true;
     state.shadow.querySelector(".zili-apply").hidden = false;
     state.shadow.querySelector(".zili-copy").hidden = false;
     state.shadow.querySelector(".zili-apply").textContent = "写进聊天框";
@@ -2499,6 +2525,8 @@
     }
     syncFollowupVisionCapability(engineStatus);
     if (Date.now() - (state.draftWrittenAt || 0) < 2000) return;
+    // 架构师模式只在打字停下后判断；光标回到输入框（点卡片时网页常会自动聚焦回去）不能弹润色卡把候选卡顶掉。
+    if (architectModeFor(composer)) return;
     if (ZiliFeatureGates.isMasterEnabled(state.settings)) {
       clearTimeout(state.inputTimer);
       if (ToneOptimizer.autoRewriteEnabled(state.settings) && ZiliFeatureGates.allowsRewrite(state.settings)) {
