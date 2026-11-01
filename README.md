@@ -152,11 +152,6 @@ python3 zili-bridge/install.py
 - **卸载**：运行 `python3 zili-bridge/install.py --uninstall`，收纳文件夹里的内容不会动。
 - **说明**：目前作者只完整实测过 Hermes，其他助手的调用方式已经写好，但还没逐个实测。遇到问题欢迎提 Issue。
 
-## 开发
-
-- 跑测试：`cd huashao-tone && node --test`
-- 红线词库 `redline-data.js` 由 `node huashao-tone/scripts/sync-redline.cjs <你的词库.json>` 生成，JSON 格式见脚本。
-
 ## 许可证
 
 [MIT](LICENSE)。图标来自 [Remix Icon](https://remixicon.com/)（Apache-2.0，见 `huashao-tone/assets/remixicon-LICENSE.txt`）。

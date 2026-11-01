@@ -11,3 +11,9 @@ zili-bridge/queue/
 # 作者本机的开发日志和商店上架草稿，只留本地
 huashao-tone/README.md
 huashao-tone/store/
+
+# 开发用：测试、本地预览、词库同步脚本、Logo 原图，只留本地
+huashao-tone/*.test.cjs
+huashao-tone/preview-server.cjs
+huashao-tone/scripts/
+huashao-tone/assets/*-source*.png
