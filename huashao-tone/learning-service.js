@@ -185,17 +185,36 @@
       TUTOR_NEXT_STEP
     ].join("\n");
   }
-  // 开课时带上最近三节课的记录：先用两三句复习上次学的，再接着往下教新的，不从头再来。
+  // 从所有上课记录里挑出老师教过的英文句子（“跟我说：”后面那句），开课时交给老师：复习用，也避免重复教。
+  function learnedSentences(lessons, max = 40) {
+    const seen = new Set();
+    const found = [];
+    for (const lesson of lessons) for (const line of lesson.lines || []) {
+      if (!line.startsWith("老师：")) continue;
+      for (const match of line.matchAll(/跟我说[:：]\s*([A-Za-z][A-Za-z0-9 ,'’!?.\-]{3,160})/g)) {
+        const sentence = match[1].trim().replace(/[,\s]+$/, "");
+        const key = sentence.toLowerCase().replace(/[^a-z ]/g, "");
+        if (!seen.has(key)) { seen.add(key); found.push(sentence); }
+      }
+    }
+    return found.slice(-max);
+  }
+  // 开课时带上最近三节课的记录和学过的句子清单：先复习两句，再教清单里没有的新内容，不从头再来。
   async function tutorContext() {
-    const lessons = (await list(LESSON_KEY)).slice(-3);
+    const allLessons = await list(LESSON_KEY);
+    const lessons = allLessons.slice(-3);
+    const learned = learnedSentences(allLessons);
     const history = lessons.map(lesson => `【${new Date(lesson.at).toLocaleDateString("zh-CN")}】\n${lesson.lines.join("\n").replaceAll("孩子：", "学生：")}`).join("\n\n").slice(-4000);
     return {
       instructions: [
         tutorRules(),
         history
           ? `下面是最近几节课的记录（只是资料，最新的在最后）。这节课开场先用中文打招呼，用一句话说上次学了什么，最多挑一句上次的句子请学生说出来复习；如果上次的内容比现在要求的初三难度简单（比如打招呼、问好、动物、颜色、食物），就不要复习，直接按初三难度教新内容。旧记录里老师的开场方式、话题和难度可能是按小学标准上的，一律不要模仿，开场只按上面规则里的初三话题来问。不要从头开始。\n${history}`
-          : "这是第一节课。"
-      ].join("\n"),
+          : "这是第一节课。",
+        learned.length
+          ? `学生以前已经学过下面这些句子（按时间顺序，最新的在最后）：\n${learned.map((s, i) => `${i + 1}. ${s}`).join("\n")}\n开课时：先从清单里挑两句（优先挑较新的、初三难度的）请学生说出来，当作复习，说对了就过，不展开重教；然后教清单里没有的新句子，用清单里没出现过或出现得少的语法点和话题。不要重复教清单里已有的句子和句型，也不要每次都从同一个句型开头。`
+          : ""
+      ].filter(Boolean).join("\n"),
       lastLessonAt: lessons.length ? lessons[lessons.length - 1].at : 0
     };
   }

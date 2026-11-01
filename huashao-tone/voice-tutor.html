@@ -15,6 +15,7 @@
     header > div { flex: 1; }
     header p { margin: 0; color: var(--muted); font-size: 12px; }
     main { display: flex; flex-direction: column; gap: 8px; min-height: 0; padding: 10px 16px; overflow: auto; }
+    [data-collect] { position: fixed; z-index: 5; padding: 4px 10px; border-radius: 999px; color: #fff; background: var(--accent); font-size: 12px; box-shadow: 0 2px 8px rgba(0,0,0,.15); }
     .saved { align-self: center; padding: 3px 10px; border-radius: 999px; color: var(--accent-strong); background: var(--soft); font-size: 12px; }
     [data-mic] { max-width: 260px; padding: 4px 8px; border: 1px solid var(--soft); border-radius: 8px; color: var(--muted); background: var(--card); font: 12px/1.4 inherit; }
     .bubble { max-width: 88%; padding: 8px 11px; border-radius: 12px 12px 12px 4px; background: var(--card); white-space: pre-wrap; overflow-wrap: anywhere; }
@@ -45,6 +46,7 @@
     <div><h1>英语陪练</h1><p>英语老师小猫：一句英文、一句中文、一个重点，跟着说就行</p></div>
     <button type="button" class="link" data-settings>设置</button>
   </header>
+  <button type="button" data-collect hidden>收藏</button>
   <main data-log aria-live="polite">
     <p class="hint">点下面的按钮开始，然后说一句“开始吧”。练习中学到想记的词或句子，说“收藏一下”就会存进英语收藏。戴耳机效果最好。</p>
     <form data-workspace hidden>

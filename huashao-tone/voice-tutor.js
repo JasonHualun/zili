@@ -6,6 +6,7 @@
   const status = text => { $("[data-status]").textContent = text; };
   const micSelect = $("[data-mic]");
   const interruptButton = $("[data-interrupt]");
+  const collectButton = $("[data-collect]");
   let session = null;
 
   // 麦克风：Mac 连着 iPhone 时系统默认输入常被切到手机，这里列出全部麦克风，默认挑 MacBook 自带的，记住上次的选择。
@@ -314,6 +315,53 @@
     event.preventDefault();
     session.interrupt();
   });
+  // 陪练窗口是插件自己的页面，网页上的划词工具进不来：在对话里划选英文，旁边弹出“收藏”。
+  // 先用文字模型讲解一下（意思、用法、例句），再存进英语收藏；文字模型没配好就用这条气泡当释义存下。
+  let picked = null;
+  function hideCollect() { collectButton.hidden = true; picked = null; }
+  log.addEventListener("mouseup", () => setTimeout(() => {
+    const selection = getSelection();
+    const text = selection?.toString().replace(/\s+/g, " ").trim() || "";
+    if (!text || !/[a-z]/i.test(text) || text.length > 300 || !log.contains(selection.anchorNode)) return hideCollect();
+    const rect = selection.getRangeAt(0).getBoundingClientRect();
+    picked = { text, context: selection.anchorNode.parentElement?.closest(".bubble")?.textContent || "" };
+    collectButton.style.left = `${Math.min(innerWidth - 60, Math.max(8, rect.right - 20))}px`;
+    collectButton.style.top = `${Math.max(8, rect.top - 30)}px`;
+    collectButton.textContent = "收藏";
+    collectButton.disabled = false;
+    collectButton.hidden = false;
+  }));
+  log.addEventListener("scroll", hideCollect);
+  collectButton.onmousedown = event => event.preventDefault();
+  collectButton.onclick = async () => {
+    if (!picked) return;
+    const { text, context } = picked;
+    collectButton.disabled = true;
+    collectButton.textContent = "收藏中…";
+    const explained = await chrome.runtime.sendMessage({
+      type: "ZILI_ASSIST",
+      action: "english",
+      text: `所选内容：${text}\n附近语境（不能代替所选内容）：${context.slice(0, 600)}`
+    }).catch(() => null);
+    const meaning = explained?.ok
+      ? [explained.text, explained.study?.usage && `用法提示：${explained.study.usage}`, explained.example, explained.exampleTranslation]
+      : [`出自英语陪练：${context.slice(0, 300)}`];
+    const saved = await chrome.runtime.sendMessage({
+      type: "ZILI_ENGLISH_SAVE",
+      context: text,
+      text: meaning.filter(Boolean).join("\n"),
+      example: explained?.ok ? explained.example || "" : "",
+      exampleTranslation: explained?.ok ? explained.exampleTranslation || "" : ""
+    }).catch(error => ({ ok: false, error: error.message }));
+    hideCollect();
+    getSelection()?.removeAllRanges();
+    if (!saved?.ok) return status(`收藏失败：${saved?.error || "请重试"}`);
+    const note = document.createElement("p");
+    note.className = "saved";
+    note.textContent = `已收藏：${text}`;
+    log.append(note);
+    log.scrollTop = log.scrollHeight;
+  };
   toggle.onclick = () => {
     if (session) { stop(); status("已结束，本次对话不会保存"); return; }
     start().catch(failed);
