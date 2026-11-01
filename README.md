@@ -15,7 +15,7 @@
 电脑上有 AI 助手（Claude Code、Codex、Gemini CLI、Hermes 等）的话，把下面这句话复制发给它：
 
 ```
-请打开 https://github.com/JasonHualun/zili/blob/main/AGENT_INSTALL.md ，按里面的步骤帮我安装“字里”浏览器插件。我是新手，请一步一步教我，每步等我确认再继续。
+请打开 https://github.com/JasonHualun/zili/blob/main/AGENT_INSTALL.md ，按里面的步骤帮我安装“字里”浏览器插件，一步一步带我做，每步等我确认再继续。
 ```
 
 它会帮你下载字里，教你在 Chrome 里装好，告诉你去哪个网站拿 API Key、选哪个模型，最后带你试一次。英语口语陪练和本地收纳也能让它一起帮你配。

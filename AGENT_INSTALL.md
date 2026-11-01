@@ -1,7 +1,7 @@
 # 字里 · 安装指南（写给 AI 助手）
 
 > 这份文件是写给 AI 助手（Claude Code、Codex、Gemini CLI、Hermes 等）看的。你的主人想安装“字里”浏览器插件，请按下面的步骤带他装好。
-> 主人多半没有编程经验，请遵守下面的“带人规则”。
+> 请遵守下面的“带人规则”，用最清楚、最省事的方式带主人装好。
 
 ## 带人规则
 
@@ -73,8 +73,8 @@ Chrome 不允许程序替人装插件，所以这一步只能主人自己点。�
 
 | 服务商 | 去哪拿 Key | 字里里可选的模型 | 能看图 | 能联网 |
 |---|---|---|---|---|
-| **DeepSeek**（默认，新手推荐） | https://platform.deepseek.com/api_keys | V4.1 Flash（推荐，便宜快）、V4 Pro（更强） | Flash 能 | 能 |
-| **通义千问**（阿里云百炼，新手推荐） | https://bailian.console.aliyun.com （“API Key”页面，地域选北京） | 3.8 Flash（推荐）、3.7 Flash 省钱、3.7 Plus、3.8 Max、3.7 Max 视觉版 | 除 3.8 Max 外都能 | 能 |
+| **DeepSeek**（默认，推荐） | https://platform.deepseek.com/api_keys | V4.1 Flash（推荐，便宜快）、V4 Pro（更强） | Flash 能 | 能 |
+| **通义千问**（阿里云百炼，推荐） | https://bailian.console.aliyun.com （“API Key”页面，地域选北京） | 3.8 Flash（推荐）、3.7 Flash 省钱、3.7 Plus、3.8 Max、3.7 Max 视觉版 | 除 3.8 Max 外都能 | 能 |
 | **豆包**（火山方舟） | https://console.volcengine.com/ark （“API Key 管理”；还要在“开通管理”里开通要用的模型） | Seed 2.1 Turbo（推荐）、Seed 2.1 Pro、Seed Evolving | 能 | 不能 |
 | **小米 MiMo** | https://platform.xiaomimimo.com | MiMo V2.5 Pro（推荐）、MiMo V2.5 | V2.5 能 | 不能 |
 | **智谱 GLM** | https://open.bigmodel.cn/usercenter/apikeys | GLM 5.2（推荐）、GLM 4.7、GLM 4.7 FlashX | 不能 | 不能 |
