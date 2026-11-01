@@ -1843,6 +1843,9 @@
       showArchitectQuestion(composer, response.question, response, sourceText);
     } else {
       state.architectClarification = null;
+      // 判断完不推荐也给一句回应，免得看起来像没反应。
+      hideHost();
+      companionSpeak("架构师看过了：这句直接发就行", 2600);
       options.onNone?.(composer, sourceText);
     }
     return response;
@@ -2621,22 +2624,31 @@
     }
     dismissManualRewriteAction();
     const useArchitectMode = architectModeFor(composer);
+    // 架构师模式自己按文字去重，不走下面「防重复润色」的跳过规则：
+    // 否则最后一下按了删除键之类的情况会让它整句不判断，用户只看到没反应。
+    if (useArchitectMode) {
+      clearTimeout(state.inputTimer);
+      if (text.length < 2) return;
+      state.inputTimer = setTimeout(() => {
+        void routeArchitectIntent(composer, {
+          onNone: liveComposer => {
+            if (!ToneOptimizer.autoRewriteEnabled(state.settings)) showManualRewriteAction(liveComposer);
+            else if (ZiliFeatureGates.allowsRewrite(state.settings) && getText(liveComposer) !== state.lastAppliedText) optimizeRewrite(false, liveComposer);
+          }
+        });
+      }, INPUT_IDLE_MS);
+      return;
+    }
     if (!ToneOptimizer.autoRewriteEnabled(state.settings)) {
       clearTimeout(state.inputTimer);
       state.inputTimer = setTimeout(() => {
-        if (useArchitectMode) {
-          void routeArchitectIntent(composer, {
-            onNone: liveComposer => showManualRewriteAction(liveComposer)
-          });
-          return;
-        }
         const recommendation = methodRecommendationFor(composer);
         if (recommendation && state.methodSuggestedText !== getText(composer)) {
           showMethodRecommendation(composer);
           return;
         }
         showManualRewriteAction(composer);
-      }, useArchitectMode ? INPUT_IDLE_MS : MANUAL_ACTION_DELAY_MS);
+      }, MANUAL_ACTION_DELAY_MS);
       return;
     }
     const rewriteDecision = state.rewriteGuard.noteInput(composer, text, event.inputType);
@@ -2654,15 +2666,9 @@
     clearTimeout(state.inputTimer);
     // Architect mode deliberately accepts a short natural phrase (such as “复盘”)
     // because the model, not a fixed trigger sentence, decides whether it matters.
-    if (!readyToWrite(composer, text) && !(useArchitectMode && text.length >= 2) && !methodRecommendationFor(composer)) return;
+    if (!readyToWrite(composer, text) && !methodRecommendationFor(composer)) return;
     state.inputTimer = setTimeout(() => {
       if (ToneOptimizer.autoRewriteEnabled(state.settings) && ZiliFeatureGates.allowsRewrite(state.settings)) {
-        if (useArchitectMode) {
-          void routeArchitectIntent(composer, {
-            onNone: liveComposer => optimizeRewrite(false, liveComposer)
-          });
-          return;
-        }
         const recommendation = methodRecommendationFor(composer);
         if (recommendation && state.methodSuggestedText !== getText(composer)) {
           showMethodRecommendation(composer);
