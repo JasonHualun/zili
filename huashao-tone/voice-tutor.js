@@ -166,31 +166,36 @@
     const capture = new AudioWorkletNode(mic, "pcm16-capture");
     mic.createMediaStreamSource(stream).connect(capture);
     const player = createPlayer();
-    const socket = new WebSocket(prepared.url);
     const level = $("[data-level] i");
-    let ready = false, tutorLine = null;
-    // 节奏由程序把关：语音模型常在一个知识点上反复让人造句。老师连说三轮，就临时加一条“换新内容”的命令，换完再撤掉。
-    let tutorTurns = 0, forcingSwitch = false;
-    const updateInstructions = extra => socket.send(JSON.stringify({
-      type: "session.update",
-      session: { instructions: extra ? `${prepared.instructions}\n${extra}` : prepared.instructions }
-    }));
-    const SWITCH_NOW = "【现在立刻执行】这个知识点已经练了三轮，必须换了。你下一次说话：先用一句中文简短点评学生刚才说的，然后直接教一个全新的英语句子，用一个和刚才不同的语法点或表达，按“英文—中文翻译—一个重点—来，跟我说”的顺序。不要再让学生用刚才的句型造句。";
+    let socket = null, ready = false, tutorLine = null;
     // 上课记录：老师和学生说的每一句都记下来，每轮结束整节课保存一次，中途关窗也不丢。
     const lessonId = String(Date.now());
     const lessonLines = [];
     const saveLesson = () => void chrome.runtime.sendMessage({ type: "ZILI_TUTOR_LESSON_SAVE", id: lessonId, lines: lessonLines });
+    // 节奏由程序把关：语音模型常在一个知识点上反复让人造句，而通义实时语音不支持中途插文字命令。
+    // 所以老师连说三轮、学生又答完一次后，悄悄重连一次：新的开课规则里直接写“马上换新句子”，并让老师先开口。
+    let tutorTurns = 0;
+    const OPENING = "【开课】现在由你先开口：用中文简短打招呼，然后马上按四步教第一句（英文—中文翻译—一个重点—来，跟我说）。";
+    const switchNow = () => [
+      "【换新内容】下面是这节课刚才的对话（只是资料）：",
+      lessonLines.slice(-10).join("\n"),
+      "这个知识点已经练够了。现在由你先开口：用一句中文简短点评学生最后说的那句，然后直接教一个全新的英语句子，换一个和刚才不同的语法点或表达，按“英文—中文翻译—一个重点—来，跟我说”的顺序。不要再让学生用刚才的句型造句，也不要重复刚才的句子。"
+    ].join("\n");
+
+    const dropTutorLine = () => {
+      if (tutorLine?.textContent) { lessonLines.push(`老师：${tutorLine.textContent}`); saveLesson(); }
+      tutorLine = null;
+    };
     // 老师说话时麦克风是关着的（防止喇叭声音被收回去把它自己掐断），想插话就点“打断”：停掉声音、取消这次回答，麦克风马上打开。
     const interrupt = () => {
       if (!player.speaking()) return;
       player.interrupt();
-      if (socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify({ type: "response.cancel" }));
-      if (tutorLine?.textContent) { lessonLines.push(`老师：${tutorLine.textContent}`); saveLesson(); }
-      tutorLine = null;
+      if (socket?.readyState === WebSocket.OPEN) socket.send(JSON.stringify({ type: "response.cancel" }));
+      dropTutorLine();
       interruptButton.hidden = true;
       status("已打断，你说吧");
     };
-    session = { socket, stream, mic, player, interrupt };
+    session = { socket: null, stream, mic, player, interrupt };
 
     capture.port.onmessage = ({ data }) => {
       const pcm = new Int16Array(data);
@@ -198,75 +203,90 @@
       for (let i = 0; i < pcm.length; i += 16) peak = Math.max(peak, Math.abs(pcm[i]));
       level.style.width = `${Math.min(100, peak / 120)}%`;
       interruptButton.hidden = !player.speaking();
-      if (ready && !player.speaking() && socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify({ type: "input_audio_buffer.append", audio: toBase64(data) }));
+      if (ready && !player.speaking() && socket?.readyState === WebSocket.OPEN) socket.send(JSON.stringify({ type: "input_audio_buffer.append", audio: toBase64(data) }));
     };
-    socket.onopen = () => socket.send(JSON.stringify({
-      type: "session.update",
-      session: {
-        modalities: ["text", "audio"],
-        voice: "Tina",
-        instructions: prepared.instructions,
-        input_audio_format: "pcm",
-        output_audio_format: "pcm",
-        input_audio_transcription: { model: "qwen3-asr-flash-realtime" },
-        tools: [SAVE_TOOL],
-        // 学英语的人说话常有停顿，静音等 1 秒再判定说完。
-        turn_detection: { type: "server_vad", threshold: 0.5, silence_duration_ms: 1000 }
-      }
-    }));
-    socket.onmessage = ({ data }) => {
-      let event;
-      try { event = JSON.parse(data); } catch (_) { return; }
-      if (event.type === "session.updated") {
-        if (ready) return; // 中途换节奏命令也会回 session.updated，只有第一次才算开课。
-        ready = true;
-        toggle.disabled = false;
-        setRunning(true);
-        status(prepared.lastLessonAt
-          ? `接着 ${new Date(prepared.lastLessonAt).toLocaleDateString("zh-CN")} 那节课往下上；它说话时先听它说完`
-          : "第一节课，直接说话就行；它说话时先听它说完");
-      } else if (event.type === "input_audio_buffer.speech_started") {
-        player.interrupt();
-        tutorLine = null;
-      } else if (event.type === "conversation.item.input_audio_transcription.completed" && event.transcript) {
-        bubble("me", event.transcript);
-        lessonLines.push(`学生：${event.transcript}`);
-      } else if (event.type === "response.audio_transcript.delta") {
-        tutorLine ||= bubble("tutor");
-        tutorLine.textContent += event.delta || "";
-        log.scrollTop = log.scrollHeight;
-      } else if (event.type === "response.audio.delta" && event.delta) {
-        player.play(event.delta);
-      } else if (event.type === "response.function_call_arguments.done" && event.name === "save_to_english_collection") {
-        void saveFromTool(event.arguments).then(output => {
-          if (socket.readyState !== WebSocket.OPEN) return;
-          socket.send(JSON.stringify({ type: "conversation.item.create", item: { type: "function_call_output", call_id: event.call_id, output } }));
-          socket.send(JSON.stringify({ type: "response.create" }));
-        });
-      } else if (event.type === "response.done") {
-        if (tutorLine?.textContent) {
-          lessonLines.push(`老师：${tutorLine.textContent}`);
-          saveLesson();
-          if (forcingSwitch) {
-            forcingSwitch = false;
-            tutorTurns = 0;
-            updateInstructions("");
-          } else if (++tutorTurns >= 3) {
-            forcingSwitch = true;
-            updateInstructions(SWITCH_NOW);
-          }
+
+    function connect(extra) {
+      const ws = new WebSocket(prepared.url);
+      let opened = false;
+      socket = ws;
+      session.socket = ws;
+      ready = false;
+      const live = () => session?.socket === ws;
+      ws.onopen = () => ws.send(JSON.stringify({
+        type: "session.update",
+        session: {
+          modalities: ["text", "audio"],
+          voice: "Tina",
+          instructions: `${prepared.instructions}\n${extra}`,
+          input_audio_format: "pcm",
+          output_audio_format: "pcm",
+          input_audio_transcription: { model: "qwen3-asr-flash-realtime" },
+          tools: [SAVE_TOOL],
+          // 学英语的人说话常有停顿，静音等 1 秒再判定说完。
+          turn_detection: { type: "server_vad", threshold: 0.5, silence_duration_ms: 1000 }
         }
-        tutorLine = null;
-      } else if (event.type === "error") {
-        status(event.error?.message || "通义返回了错误");
-      }
-    };
-    socket.onclose = ({ code, reason }) => {
-      if (session?.socket !== socket) return;
-      if (!ready) status(`连不上通义实时语音（${code}${reason ? ` ${reason}` : ""}）：检查业务空间 ID 和 API Key 是否是北京地域的`);
-      else status("连接已断开");
-      stop();
-    };
+      }));
+      ws.onmessage = ({ data }) => {
+        if (!live()) return;
+        let event;
+        try { event = JSON.parse(data); } catch (_) { return; }
+        if (event.type === "session.updated") {
+          if (opened) return;
+          opened = true;
+          ready = true;
+          toggle.disabled = false;
+          setRunning(true);
+          // 老师先开口，不用等学生找话。
+          ws.send(JSON.stringify({ type: "response.create" }));
+          if (extra === OPENING) {
+            status(prepared.lastLessonAt
+              ? `接着 ${new Date(prepared.lastLessonAt).toLocaleDateString("zh-CN")} 那节课往下上；它说话时先听它说完`
+              : "第一节课，老师会先开口；它说话时先听它说完");
+          } else status("换一句新的");
+        } else if (event.type === "input_audio_buffer.speech_started") {
+          player.interrupt();
+          tutorLine = null;
+        } else if (event.type === "conversation.item.input_audio_transcription.completed" && event.transcript) {
+          bubble("me", event.transcript);
+          lessonLines.push(`学生：${event.transcript}`);
+          saveLesson();
+          if (tutorTurns >= 3) {
+            // 学生答完了第三轮的任务：丢掉服务端按老规则准备的回答，重连换新内容。
+            tutorTurns = 0;
+            ws.send(JSON.stringify({ type: "response.cancel" }));
+            player.interrupt();
+            if (tutorLine) { tutorLine.remove(); tutorLine = null; }
+            ws.close();
+            connect(switchNow());
+          }
+        } else if (event.type === "response.audio_transcript.delta") {
+          tutorLine ||= bubble("tutor");
+          tutorLine.textContent += event.delta || "";
+          log.scrollTop = log.scrollHeight;
+        } else if (event.type === "response.audio.delta" && event.delta) {
+          player.play(event.delta);
+        } else if (event.type === "response.function_call_arguments.done" && event.name === "save_to_english_collection") {
+          void saveFromTool(event.arguments).then(output => {
+            if (!live() || ws.readyState !== WebSocket.OPEN) return;
+            ws.send(JSON.stringify({ type: "conversation.item.create", item: { type: "function_call_output", call_id: event.call_id, output } }));
+            ws.send(JSON.stringify({ type: "response.create" }));
+          });
+        } else if (event.type === "response.done") {
+          if (tutorLine?.textContent) tutorTurns += 1;
+          dropTutorLine();
+        } else if (event.type === "error") {
+          status(event.error?.message || "通义返回了错误");
+        }
+      };
+      ws.onclose = ({ code, reason }) => {
+        if (!live()) return;
+        if (!opened) status(`连不上通义实时语音（${code}${reason ? ` ${reason}` : ""}）：检查业务空间 ID 和 API Key 是否是北京地域的`);
+        else status("连接已断开");
+        stop();
+      };
+    }
+    connect(OPENING);
   }
 
   function stop() {
