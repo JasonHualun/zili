@@ -1,0 +1,65 @@
+{
+  "manifest_version": 3,
+  "name": "字里",
+  "version": "0.26.0",
+  "description": "在网页输入框润色和扩写；在 AI 聊天页本地推荐方法 Prompt；也可高亮或截图翻译、解释、解题、回复和核验；由你确认后写入。",
+  "icons": {
+    "16": "assets/icon16.png",
+    "32": "assets/icon32.png",
+    "48": "assets/icon48.png",
+    "128": "assets/icon128.png"
+  },
+  "permissions": ["storage", "activeTab", "clipboardRead", "nativeMessaging"],
+  "host_permissions": [
+    "https://api.deepseek.com/*",
+    "https://api.xiaomimimo.com/*",
+    "https://api.minimaxi.com/*",
+    "https://open.bigmodel.cn/*",
+    "https://ark.cn-beijing.volces.com/*",
+    "https://dashscope.aliyuncs.com/*",
+    "https://*.cn-beijing.maas.aliyuncs.com/*"
+  ],
+  "optional_host_permissions": [
+    "https://*/*",
+    "http://localhost/*",
+    "http://127.0.0.1/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": [
+        "http://*/*",
+        "https://*/*"
+      ],
+      "js": ["optimizer.js", "trigger-rules.js", "method-library.js", "feature-gates.js", "runtime-client.js", "screenshot-utils.js", "video-text.js", "selection-router.js", "interaction-policy.js", "assistant-layout.js", "writeback.js", "companion-chat.js", "collect-panel.js", "english-voice.js", "english-study.js", "content-learning.js", "page-copy.js", "page-filter.js", "video-subtitles.js", "content.js"],
+      "css": ["content.css"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "http://*/*",
+        "https://*/*"
+      ],
+      "js": ["key-guard.js"],
+      "run_at": "document_start"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["assets/zili-siamese-cat.png", "assets/zili-companion-cat.png", "assets/zili-companion-cat-sage.png", "assets/zili-companion-cat-sand.png", "assets/zili-companion-cat-ink.png"],
+      "matches": ["http://*/*", "https://*/*"]
+    }
+  ],
+  "action": {
+    "default_title": "字里",
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "assets/icon16.png",
+      "32": "assets/icon32.png",
+      "48": "assets/icon48.png",
+      "128": "assets/icon128.png"
+    }
+  },
+  "background": {
+    "service_worker": "background.js"
+  }
+}

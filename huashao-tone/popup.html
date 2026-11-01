@@ -1,0 +1,288 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>字里</title>
+    <link rel="stylesheet" href="popup.css">
+  </head>
+  <body>
+    <!-- Icons: Remix Icon v4.6.0 (Apache-2.0), bundled locally in assets/remixicon-sprite.svg -->
+    <main class="app-shell">
+      <header class="topbar">
+        <img class="brand-cat" src="assets/zili-siamese-cat.png" alt="">
+        <h1>字里</h1>
+        <span id="enabled-state" class="sr-only" role="status">正在读取</span>
+        <button id="openSettings" class="icon-button settings-toggle" type="button" aria-expanded="false" aria-controls="settingsPanel" aria-label="设置" title="设置"><svg class="ri" aria-hidden="true"><use href="assets/remixicon-sprite.svg#ri-settings-3-line"/></svg></button>
+        <input id="enabled" class="toggle toggle-lg" type="checkbox" aria-label="启用字里" title="启用或停用字里">
+      </header>
+
+      <section class="card tools" aria-label="常用动作">
+        <div class="tool-grid">
+          <button id="pageFilter" class="tool" type="button" aria-pressed="false" title="只留下你想看的内容"><svg class="ri" aria-hidden="true"><use href="assets/remixicon-sprite.svg#ri-filter-3-line"/></svg><span>一键脱水</span></button>
+          <button id="copyMode" class="tool" type="button" aria-pressed="false" title="让本页文字可划选复制，刷新后失效"><svg class="ri" aria-hidden="true"><use href="assets/remixicon-sprite.svg#ri-file-copy-line"/></svg><span>本页复制</span></button>
+          <button id="videoTranslation" class="tool" type="button" aria-pressed="false" title="翻译当前视频已有的字幕，按模型用量计费"><svg class="ri" aria-hidden="true"><use href="assets/remixicon-sprite.svg#ri-closed-captioning-line"/></svg><span>字幕翻译</span></button>
+          <button id="captureRegion" class="tool" type="button" title="框选当前网页并识别"><svg class="ri" aria-hidden="true"><use href="assets/remixicon-sprite.svg#ri-screenshot-2-line"/></svg><span>框选识别</span></button>
+          <button id="voiceTutor" class="tool" type="button" title="打开英语口语教练小窗，直接开口练"><svg class="ri" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a3 3 0 0 0-3 3v4a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3Zm0-2a5 5 0 0 1 5 5v4a5 5 0 0 1-10 0V6a5 5 0 0 1 5-5ZM3.055 11H5.07a7 7 0 0 0 13.858 0h2.016A9.004 9.004 0 0 1 13 18.945V23h-2v-4.055A9.004 9.004 0 0 1 3.055 11Z"/></svg><span>英语陪练</span></button>
+        </div>
+        <div class="tool-status" aria-live="polite">
+          <p id="screenshot-state" class="screenshot-state" role="status"></p>
+          <p id="copyModeState" class="screenshot-state" role="status"></p>
+          <p id="videoTranslationState" class="screenshot-state" role="status"></p>
+          <p id="pageCleanState" class="screenshot-state" role="status"></p>
+        </div>
+        <span id="screenshot-model-state" class="sr-only"></span>
+      </section>
+
+      <div id="settingsPanel" class="settings-panel" hidden>
+      <section class="card list">
+        <label class="row" for="pageFilterInstruction"><svg class="ri" aria-hidden="true"><use href="assets/remixicon-sprite.svg#ri-filter-3-line"/></svg><span class="row-title">脱水要求</span><input id="pageFilterInstruction" class="row-input" type="text" maxlength="200" placeholder="只留 AI 相关"></label>
+        <div class="row" title="网页里点猫 → 收纳，交给这个本地 Agent 整理进你的收纳文件夹"><svg class="ri" aria-hidden="true"><use href="assets/remixicon-sprite.svg#ri-clipboard-line"/></svg><label class="row-title" for="collectAgent">本地收纳</label><select id="collectAgent" class="row-input" disabled><option>检测中…</option></select><button id="collectMatch" class="icon-button" type="button" aria-label="一键匹配本地 Agent" title="一键匹配本地 Agent"><svg class="ri" aria-hidden="true"><use href="assets/remixicon-sprite.svg#ri-refresh-line"/></svg></button></div>
+        <div id="collectSetup" class="collect-setup" hidden><p data-collect-text></p><small class="collect-note" data-collect-detail></small><button id="collectDeploy" class="collect-deploy" type="button" hidden>一键部署字里桥</button><p class="collect-note" data-collect-next hidden>部署命令已复制。打开「终端」，输入 cd 和一个空格，把下载的字里文件夹拖进终端窗口、回车；再按 ⌘V 粘贴、回车。装好后回来点右上的刷新按钮重新检测。</p></div>
+        <button id="openEnglishLibrary" class="row" type="button"><svg class="ri" aria-hidden="true"><use href="assets/remixicon-sprite.svg#ri-bookmark-3-line"/></svg><span class="row-title">英语收藏</span></button>
+      </section>
+
+      <section class="card list">
+        <details id="writing-details" class="fold">
+          <summary class="row"><svg class="ri" aria-hidden="true"><use href="assets/remixicon-sprite.svg#ri-quill-pen-ai-line"/></svg><span class="row-title">写作助手</span><small id="writing-status-summary" class="row-meta"></small><svg class="ri chevron" aria-hidden="true"><use href="assets/remixicon-sprite.svg#ri-arrow-down-s-line"/></svg></summary>
+          <div class="fold-body flush">
+            <label class="row"><svg class="ri" aria-hidden="true"><use href="assets/remixicon-sprite.svg#ri-quill-pen-ai-line"/></svg><span class="row-title">自动润色</span><input id="autoRewrite" class="toggle" type="checkbox"></label>
+            <div id="rewrite-options" class="sub-rows">
+              <label class="row sub-row"><span class="row-title">直接写入</span><input id="autoApplyRewrite" class="toggle" type="checkbox"></label>
+            </div>
+            <p id="manual-writing-guide" class="sr-only"></p>
+
+            <label class="row" title="只在 AI 聊天页生效；打字停顿时把草稿交给模型推荐方法"><svg class="ri" aria-hidden="true"><use href="assets/remixicon-sprite.svg#ri-compass-3-line"/></svg><span class="row-title">架构师模式</span><input id="architectMode" class="toggle" type="checkbox" aria-label="开启架构师模式"></label>
+
+            <label class="row"><svg class="ri" aria-hidden="true"><use href="assets/remixicon-sprite.svg#ri-mark-pen-line"/></svg><span class="row-title">划线助手</span><input id="selectionComments" class="toggle" type="checkbox"></label>
+            <div id="selection-options" class="chips">
+              <label class="chip"><input id="termExplanation" type="checkbox"><span>翻译解释</span></label>
+              <label class="chip"><input id="questionAnswer" type="checkbox"><span>解答</span></label>
+              <label class="chip"><input id="selectionReply" type="checkbox"><span>回复</span></label>
+            </div>
+
+            <div class="row">
+              <svg class="ri" aria-hidden="true"><use href="assets/remixicon-sprite.svg#ri-flashlight-line"/></svg>
+              <span class="row-title">关键词回复</span>
+              <button id="addTriggerReply" class="icon-button" type="button" aria-label="添加关键词回复" title="添加关键词回复"><svg class="ri" aria-hidden="true"><use href="assets/remixicon-sprite.svg#ri-add-line"/></svg></button>
+              <input id="triggerRepliesEnabled" class="toggle" type="checkbox" aria-label="开启关键词回复">
+            </div>
+            <div id="triggerReplyList" class="trigger-reply-list" aria-live="polite"></div>
+            <p id="triggerReplyState" class="inline-state" role="status" hidden></p>
+          </div>
+        </details>
+        <details id="tone-settings" class="fold">
+          <summary class="row"><svg class="ri" aria-hidden="true"><use href="assets/remixicon-sprite.svg#ri-equalizer-line"/></svg><span class="row-title">口吻</span><svg class="ri chevron" aria-hidden="true"><use href="assets/remixicon-sprite.svg#ri-arrow-down-s-line"/></svg></summary>
+          <div class="fold-body">
+            <div id="presets" class="segmented"></div>
+            <div class="slider-grid">
+              <label>聊天感 <output id="human-value"></output><input id="human" type="range" min="0" max="100"><span class="range-hints"><span>规整</span><span>随意</span></span></label>
+              <label>观点强度 <output id="opinion-value"></output><input id="opinion" type="range" min="0" max="100"><span class="range-hints"><span>温和</span><span>鲜明</span></span></label>
+              <label>句式 <output id="question-value"></output><input id="question" type="range" min="0" max="100"><span class="range-hints"><span>肯定</span><span>疑问</span></span></label>
+              <label>长度 <output id="length-value"></output><input id="length" type="range" min="0" max="100"><span class="range-hints"><span>简约</span><span>话痨</span></span></label>
+            </div>
+            <div id="profile-assistant" class="profile-block">
+              <div class="profile-mode-switch" role="tablist" aria-label="选择口吻档案方式">
+                <button id="profileModeWizard" class="profile-mode-button is-selected" data-profile-mode="wizard" type="button">建立我的表达</button>
+                <button id="profileModePaste" class="profile-mode-button" data-profile-mode="paste" type="button">直接粘贴样例</button>
+                <button id="profileCollapse" class="icon-button" type="button" aria-label="收起" title="收起" hidden><svg class="ri" aria-hidden="true"><use href="assets/remixicon-sprite.svg#ri-close-line"/></svg></button>
+              </div>
+              <p id="profile-assistant-state" class="profile-state" role="status" aria-live="polite"></p>
+
+              <div id="profileWizardPanel" class="profile-panel" hidden>
+                <div class="profile-progress-row"><span id="profileProgress">场景 1 / 6</span><span id="profileDraftState"></span></div>
+                <div id="profileQuestionBlock" class="profile-question-block">
+                  <p id="profileQuestion" class="profile-question"></p>
+                  <p id="profileExample" class="profile-example"></p>
+                  <textarea id="profileAnswer" rows="3" maxlength="360" placeholder="写你真实会说的话"></textarea>
+                  <p id="profileAnswerState" class="profile-answer-state" role="status" aria-live="polite"></p>
+                </div>
+                <div class="pair-actions">
+                  <button id="profileBack" class="secondary" type="button">上一题</button>
+                  <button id="profileNext" class="primary" type="button">下一题</button>
+                </div>
+
+                <div id="profileFinishPanel" class="profile-finish-panel" hidden>
+                  <p id="profileAnswerSummary" class="profile-answer-summary"></p>
+                  <details class="profile-optional-details">
+                    <summary>补充 2 题</summary>
+                    <div class="profile-optional-fields">
+                      <label>常用的开头或收尾<textarea id="profileExtraPhrase" rows="2" maxlength="240" placeholder="先说结论 / 做了才知道"></textarea></label>
+                      <label>不想出现的说法<textarea id="profileExtraAvoid" rows="2" maxlength="240" placeholder="总的来说 / 综上所述"></textarea></label>
+                    </div>
+                  </details>
+
+                  <div class="profile-preference-grid">
+                    <label>标点<select id="profilePunctuation">
+                      <option value="noPeriods">不加句号</option>
+                      <option value="normal">正常使用</option>
+                      <option value="sparse">少一点</option>
+                      <option value="adaptive">看场景</option>
+                    </select></label>
+                    <label>表情<select id="profileEmoji">
+                      <option value="none">不主动加</option>
+                      <option value="occasional">偶尔</option>
+                      <option value="often">经常</option>
+                      <option value="adaptive">看场景</option>
+                    </select></label>
+                  </div>
+                  <div id="profileEmojiFavorites" class="profile-emoji-grid" role="group" aria-label="常用 emoji">
+                    <button type="button" data-emoji="🙂">🙂</button>
+                    <button type="button" data-emoji="😂">😂</button>
+                    <button type="button" data-emoji="😅">😅</button>
+                    <button type="button" data-emoji="🤔">🤔</button>
+                    <button type="button" data-emoji="👍">👍</button>
+                    <button type="button" data-emoji="🙌">🙌</button>
+                    <button type="button" data-emoji="❤️">❤️</button>
+                    <button type="button" data-emoji="😭">😭</button>
+                  </div>
+
+                  <div id="profileCandidatePreview" class="profile-candidate-preview" aria-label="候选档案预览"></div>
+                  <textarea id="profileTrialText" rows="2" maxlength="1000" aria-label="试写" placeholder="试写一句，看看像不像你"></textarea>
+                  <div class="pair-actions"><button id="profileTrial" class="secondary" type="button">试写</button><span id="profileTrialUsage" class="usage"></span></div>
+                  <p id="profileTrialResult" class="profile-trial-result" role="status" aria-live="polite"></p>
+                  <div class="pair-actions"><button id="profileRestart" class="secondary" type="button">重新回答</button><button id="profileSave" class="primary" type="button">保存档案</button></div>
+                </div>
+              </div>
+
+              <div id="profilePastePanel" class="profile-panel" hidden>
+                <textarea id="reference" rows="5" maxlength="2400" aria-label="我的口吻样例" placeholder="粘贴你以前写过的话，多段之间空一行"></textarea>
+                <button id="profileSavePaste" class="primary block" type="button">保存样例</button>
+                <div class="profile-remember-row">
+                  <input id="profileSampleContext" type="text" maxlength="80" aria-label="样例场景" placeholder="场景，如：社交回复">
+                  <button id="profileRememberSample" class="secondary" type="button">记住</button>
+                </div>
+                <p id="profilePasteState" class="profile-paste-state" role="status" aria-live="polite"></p>
+                <div class="profile-samples-head"><strong>已记住</strong><button id="profileRefreshSamples" class="icon-button" type="button" aria-label="刷新" title="刷新"><svg class="ri" aria-hidden="true"><use href="assets/remixicon-sprite.svg#ri-refresh-line"/></svg></button></div>
+                <div id="profileSampleList" class="profile-sample-list"></div>
+                <p id="profileSamplesState" class="profile-samples-state" role="status" aria-live="polite"></p>
+              </div>
+            </div>
+          </div>
+        </details>
+
+        <details id="methodLibraryDetails" class="fold">
+          <summary class="row"><svg class="ri" aria-hidden="true"><use href="assets/remixicon-sprite.svg#ri-book-shelf-line"/></svg><span class="row-title">方法论库</span><small id="methodCardCount" class="row-meta"></small><svg class="ri chevron" aria-hidden="true"><use href="assets/remixicon-sprite.svg#ri-arrow-down-s-line"/></svg></summary>
+          <div class="fold-body">
+            <button id="addMethodCard" class="secondary block with-icon" type="button"><svg class="ri" aria-hidden="true"><use href="assets/remixicon-sprite.svg#ri-add-line"/></svg>录入方法</button>
+            <div id="methodCardList" class="method-card-list" aria-live="polite"></div>
+            <p id="methodCardState" class="inline-state" role="status"></p>
+          </div>
+        </details>
+
+        <details id="engine-settings" class="fold">
+          <summary class="row"><svg class="ri" aria-hidden="true"><use href="assets/remixicon-sprite.svg#ri-cpu-line"/></svg><span class="row-title">模型</span><small id="connection-state" role="status" aria-live="polite" class="connection-state">读取中</small><svg class="ri chevron" aria-hidden="true"><use href="assets/remixicon-sprite.svg#ri-arrow-down-s-line"/></svg></summary>
+          <div class="fold-body">
+            <div class="select-pair">
+              <label class="sr-only" for="modelProvider">模型服务</label>
+              <select id="modelProvider">
+                <option value="deepseek">DeepSeek</option>
+                <option value="xiaomi">小米 MiMo</option>
+                <option value="minimax">MiniMax</option>
+                <option value="glm">智谱 GLM</option>
+                <option value="doubao">豆包</option>
+                <option value="qwen">通义千问</option>
+                <option value="custom">自定义中转站</option>
+              </select>
+              <label class="sr-only" for="modelVersion">具体模型</label>
+              <select id="modelVersion"></select>
+            </div>
+            <div id="customProviderFields" class="custom-provider-fields" hidden>
+              <label class="sr-only" for="customApiUrl">API 接口地址</label>
+              <input id="customApiUrl" type="url" autocomplete="off" spellcheck="false" placeholder="https://example.com/v1">
+              <label class="sr-only" for="customModelId">模型 ID</label>
+              <div class="input-pair">
+                <input id="customModelId" type="text" list="customModelList" autocomplete="off" spellcheck="false" placeholder="模型 ID">
+                <button id="fetchCustomModels" class="secondary" type="button">读取模型</button>
+              </div>
+              <datalist id="customModelList"></datalist>
+              <div class="chips flat" aria-label="中转模型能力">
+                <label class="chip"><input id="customVision" type="checkbox"><span>可识图</span></label>
+                <label class="chip"><input id="customWebSearch" type="checkbox"><span>可联网</span></label>
+              </div>
+            </div>
+            <details id="model-details" class="model-details">
+              <summary><span id="provider-model" class="provider-model"></span><svg class="ri chevron" aria-hidden="true"><use href="assets/remixicon-sprite.svg#ri-arrow-down-s-line"/></svg></summary>
+              <div class="model-details-body">
+                <p id="model-use-case"></p>
+                <p id="model-price"></p>
+                <p id="model-id"></p>
+              </div>
+            </details>
+            <label id="provider-key-label" class="sr-only" for="providerApiKey">API Key</label>
+            <div class="input-pair">
+              <input id="providerApiKey" type="password" autocomplete="off" spellcheck="false" placeholder="API Key">
+              <button id="saveProviderKey" class="primary" type="button">保存</button>
+            </div>
+            <div class="key-meta"><span id="key-state"></span><button id="clearProviderKey" class="text-button danger" type="button">清除</button></div>
+            <button id="check-connection" class="secondary block" type="button">检查 API</button>
+          </div>
+        </details>
+
+        <details id="appearance-details" class="fold">
+          <summary class="row"><svg class="ri" aria-hidden="true"><use href="assets/remixicon-sprite.svg#ri-palette-line"/></svg><span class="row-title">外观</span><svg class="ri chevron" aria-hidden="true"><use href="assets/remixicon-sprite.svg#ri-arrow-down-s-line"/></svg></summary>
+          <div class="fold-body">
+            <div id="themes" class="theme-grid" aria-label="皮肤颜色">
+              <button type="button" class="theme-option" data-theme="mist" title="雾蓝"><span class="theme-swatch theme-swatch-mist"></span>雾蓝</button>
+              <button type="button" class="theme-option" data-theme="sage" title="松墨"><span class="theme-swatch theme-swatch-sage"></span>松墨</button>
+              <button type="button" class="theme-option" data-theme="sand" title="暖砂"><span class="theme-swatch theme-swatch-sand"></span>暖砂</button>
+              <button type="button" class="theme-option" data-theme="ink" title="夜墨"><span class="theme-swatch theme-swatch-ink"></span>夜墨</button>
+            </div>
+            <label class="row sub-row"><span class="row-title">漂浮猫</span><input id="floatingCompanion" class="toggle" type="checkbox"></label>
+          </div>
+        </details>
+      </section>
+
+      <footer><span id="save-state" role="status" aria-live="polite"></span><span class="version">v0.26.0</span><button id="save" class="primary" type="button" hidden>保存设置</button></footer>
+      </div>
+    </main>
+
+    <dialog id="triggerReplyDialog" class="sheet" aria-labelledby="triggerReplyDialogTitle">
+      <form id="triggerReplyForm" method="dialog">
+        <div class="dialog-head"><h2 id="triggerReplyDialogTitle">添加关键词回复</h2><button id="cancelTriggerReplyTop" class="icon-button" type="button" aria-label="关闭"><svg class="ri" aria-hidden="true"><use href="assets/remixicon-sprite.svg#ri-close-line"/></svg></button></div>
+        <input id="triggerReplyId" type="hidden">
+        <input id="triggerReplyPattern" type="text" maxlength="160" aria-label="关键词或句子" placeholder="关键词或句子">
+        <textarea id="triggerReplyText" rows="3" maxlength="1200" aria-label="出现时回复" placeholder="出现时回复"></textarea>
+        <p id="triggerReplyDialogState" class="inline-state is-error" role="status" aria-live="polite"></p>
+        <div class="dialog-actions"><button id="cancelTriggerReply" class="secondary" type="button">取消</button><button id="saveTriggerReply" class="primary" type="submit">保存</button></div>
+      </form>
+    </dialog>
+    <dialog id="methodCardDialog" class="sheet" aria-labelledby="methodCardDialogTitle">
+      <form id="methodCardForm" method="dialog">
+        <div class="dialog-head"><h2 id="methodCardDialogTitle">让 AI 帮我录入方法</h2><button id="cancelMethodCardTop" class="icon-button" type="button" aria-label="关闭"><svg class="ri" aria-hidden="true"><use href="assets/remixicon-sprite.svg#ri-close-line"/></svg></button></div>
+        <textarea id="methodCardInput" rows="7" maxlength="8000" aria-label="需求或原始材料" placeholder="说你想解决什么，或粘贴一段 Prompt / Skill"></textarea>
+        <section id="methodCardPreview" class="method-card-preview" hidden>
+          <strong id="methodCardPreviewName"></strong>
+          <span id="methodCardPreviewMeta"></span>
+          <p id="methodCardPreviewSummary"></p>
+          <details><summary>完整 Prompt</summary><pre id="methodCardPreviewPrompt"></pre></details>
+        </section>
+        <p id="methodCardDialogState" class="inline-state" role="status" aria-live="polite"></p>
+        <div class="dialog-actions method-intake-actions"><button id="cancelMethodCard" class="secondary" type="button">取消</button><button id="methodCardAsk" class="primary" type="submit">让 AI 整理</button><button id="saveMethodCard" class="primary" type="button" hidden>确认保存</button></div>
+      </form>
+    </dialog>
+    <aside id="zili-chat" class="chat-widget" aria-label="卡路里聊天助手" hidden>
+      <section id="zili-chat-panel" class="chat-panel" hidden aria-label="卡路里聊天窗口">
+        <div class="chat-panel-head"><div><strong>卡路里</strong><small id="zili-chat-status"></small></div><button id="zili-chat-collapse" class="icon-button" type="button" aria-label="收起聊天"><svg class="ri" aria-hidden="true"><use href="assets/remixicon-sprite.svg#ri-close-line"/></svg></button></div>
+        <div id="zili-chat-messages" class="chat-messages" aria-live="polite"></div>
+        <div id="zili-chat-entry-actions" class="chat-entry-actions"></div>
+        <div id="zili-chat-proposal" class="chat-proposal" hidden></div>
+        <form id="zili-chat-form" class="chat-form">
+          <textarea id="zili-chat-input" rows="2" maxlength="2000" placeholder="说说你想写什么"></textarea>
+          <div class="chat-form-actions"><button id="zili-chat-clear" class="text-button" type="button">清空</button><button id="zili-chat-send" class="primary" type="submit">发送</button></div>
+        </form>
+      </section>
+      <button id="zili-chat-toggle" class="chat-cat-button" type="button" aria-label="打开卡路里聊天"><img src="assets/zili-siamese-cat.png" alt="打开卡路里聊天"></button>
+    </aside>
+    <script src="optimizer.js"></script>
+    <script src="trigger-rules.js"></script>
+    <script src="method-library.js"></script>
+    <script src="voice-profile.js"></script>
+    <script src="runtime-client.js"></script>
+    <script src="screenshot-utils.js"></script>
+    <script src="settings-assistant.js"></script>
+    <script src="english-voice.js"></script>
+    <script src="popup.js"></script>
+    <script src="popup-organizer.js"></script>
+  </body>
+</html>

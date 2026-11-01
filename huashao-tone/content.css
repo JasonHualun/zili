@@ -1,0 +1,66 @@
+#huashao-tone-root {
+  all: initial;
+  position: fixed;
+  z-index: 2147483647;
+  display: none;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif;
+}
+
+#huashao-tone-root.is-visible {
+  display: block;
+}
+
+#huashao-tone-root.is-companion-card {
+  z-index: 2147483646;
+}
+
+#zili-companion-root {
+  all: initial;
+  position: fixed;
+  right: 18px;
+  bottom: 16px;
+  z-index: 2147483645;
+  display: none;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif;
+}
+
+#zili-companion-root.is-visible {
+  display: block;
+}
+
+#zili-companion-root.is-card-attached {
+  z-index: 2147483647;
+  pointer-events: none;
+}
+
+#zili-screenshot-overlay {
+  all: initial;
+  position: fixed;
+  inset: 0;
+  z-index: 2147483646;
+  cursor: crosshair;
+  background: rgba(15, 23, 32, .28);
+  user-select: none;
+}
+
+#zili-screenshot-overlay .zili-screenshot-hint {
+  position: fixed;
+  top: 18px;
+  left: 50%;
+  padding: 9px 13px;
+  transform: translateX(-50%);
+  border-radius: 999px;
+  color: #fff;
+  background: rgba(24, 36, 51, .92);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .18);
+  font: 600 12px/1.2 -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+}
+
+#zili-screenshot-overlay .zili-screenshot-box {
+  position: fixed;
+  display: none;
+  border: 2px solid #62e0a7;
+  border-radius: 7px;
+  background: rgba(255, 255, 255, .08);
+  box-shadow: 0 0 0 9999px rgba(15, 23, 32, .36);
+}

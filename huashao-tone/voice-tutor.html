@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>英语陪练</title>
+  <style>
+    :root { --bg: #f4f7f9; --card: #ffffff; --text: #22323f; --muted: #7d8996; --accent: #557fa8; --accent-strong: #426b91; --soft: #e8eff4; --danger: #b5523b; }
+    @media (prefers-color-scheme: dark) { :root { --bg: #1b2229; --card: #262f3a; --text: #e3e9ee; --muted: #93a0ac; --accent: #6f98c0; --accent-strong: #8db0d3; --soft: #2f3a46; --danger: #e08a72; } }
+    * { box-sizing: border-box; }
+    body { margin: 0; height: 100vh; overflow: hidden; display: grid; grid-template-rows: auto 1fr auto; color: var(--text); background: var(--bg); font: 14px/1.6 -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif; }
+    header { display: flex; align-items: center; gap: 10px; padding: 14px 16px 6px; }
+    header img { width: 34px; height: 34px; }
+    header h1 { margin: 0; font-size: 16px; }
+    header > div { flex: 1; }
+    header p { margin: 0; color: var(--muted); font-size: 12px; }
+    main { display: flex; flex-direction: column; gap: 8px; min-height: 0; padding: 10px 16px; overflow: auto; }
+    .saved { align-self: center; padding: 3px 10px; border-radius: 999px; color: var(--accent-strong); background: var(--soft); font-size: 12px; }
+    [data-mic] { max-width: 260px; padding: 4px 8px; border: 1px solid var(--soft); border-radius: 8px; color: var(--muted); background: var(--card); font: 12px/1.4 inherit; }
+    .bubble { max-width: 88%; padding: 8px 11px; border-radius: 12px 12px 12px 4px; background: var(--card); white-space: pre-wrap; overflow-wrap: anywhere; }
+    .bubble.me { align-self: flex-end; border-radius: 12px 12px 4px 12px; color: #fff; background: var(--accent); }
+    .hint { color: var(--muted); font-size: 12px; text-align: center; }
+    form[data-workspace] { display: grid; gap: 8px; padding: 12px; border-radius: 12px; background: var(--card); }
+    form[data-workspace] label { display: grid; gap: 4px; font-size: 13px; }
+    form[data-workspace] small { color: var(--muted); font-size: 12px; }
+    button.link { padding: 2px 4px; color: var(--accent-strong); background: none; font-size: 12px; justify-self: start; }
+    form[data-workspace] input { padding: 8px 10px; border: 1px solid var(--soft); border-radius: 8px; color: inherit; background: var(--bg); font: inherit; }
+    footer { display: grid; justify-items: center; gap: 6px; padding: 12px 16px 18px; }
+    button { border: 0; border-radius: 10px; font: inherit; cursor: pointer; }
+    [data-toggle] { display: flex; align-items: center; gap: 8px; padding: 12px 26px; color: #fff; background: var(--accent); font-size: 15px; font-weight: 600; }
+    [data-toggle]:hover { background: var(--accent-strong); }
+    [data-toggle][data-on="true"] { background: var(--danger); }
+    [data-toggle]:disabled { opacity: .5; cursor: default; }
+    [data-toggle] svg { width: 18px; height: 18px; }
+    form[data-workspace] button[type="submit"] { padding: 8px; color: #fff; background: var(--accent); }
+    [data-status] { min-height: 1.6em; color: var(--muted); font-size: 12px; text-align: center; }
+    [data-level] { width: 120px; height: 4px; border-radius: 2px; background: var(--soft); overflow: hidden; }
+    [data-level] i { display: block; width: 0; height: 100%; background: var(--accent); transition: width .08s linear; }
+    [hidden] { display: none !important; }
+  </style>
+</head>
+<body>
+  <header>
+    <img src="assets/icon48.png" alt="">
+    <div><h1>英语陪练</h1><p>英语老师小猫：一句英文、一句中文、一个重点，跟着说就行</p></div>
+    <button type="button" class="link" data-settings>设置</button>
+  </header>
+  <main data-log aria-live="polite">
+    <p class="hint">点下面的按钮开始，然后说一句“开始吧”。练习中学到想记的词或句子，说“收藏一下”就会存进英语收藏。戴耳机效果最好。</p>
+    <form data-workspace hidden>
+      <strong>语音陪练设置</strong>
+      <label>业务空间 ID<input name="workspace" autocomplete="off" spellcheck="false" placeholder="在百炼控制台右上角复制"></label>
+      <small>不是密码，只用来拼出专属连接地址。</small>
+      <label>语音专用 API Key（可不填）<input name="apiKey" type="password" autocomplete="off" spellcheck="false"></label>
+      <small data-key-hint></small>
+      <button type="button" class="link" data-clear-key hidden>不用专用 Key，改回文字那边的 Key</button>
+      <button type="submit">保存并开始</button>
+    </form>
+  </main>
+  <footer>
+    <select data-mic aria-label="麦克风"><option value="">系统默认麦克风</option></select>
+    <div data-level aria-hidden="true"><i></i></div>
+    <button type="button" data-toggle data-on="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg><span>开始陪练</span></button>
+    <p data-status role="status"></p>
+  </footer>
+  <script src="voice-tutor.js"></script>
+</body>
+</html>

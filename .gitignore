@@ -1,0 +1,13 @@
+.DS_Store
+node_modules/
+__pycache__/
+*.log
+zili-bridge/inbox/
+zili-bridge/queue/
+*.crx
+*.pem
+*.zip
+
+# 作者本机的开发日志和商店上架草稿，只留本地
+huashao-tone/README.md
+huashao-tone/store/
