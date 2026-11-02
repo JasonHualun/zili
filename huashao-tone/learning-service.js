@@ -1,7 +1,7 @@
 (function (global) {
   const SAMPLE_KEY = "ziliExpressionSamples";
   const WORD_KEY = "ziliEnglishNotes";
-  const LESSON_KEY = "ziliTutorLessons";
+  const LESSON_KEY = "ziliTutorLessons"; // 旧版上课记录，打开陪练时删掉
   const allowed = { punctuation: ["normal", "sparse", "adaptive", "noPeriods"], emoji: ["none", "occasional", "often", "adaptive"], style: ["human", "opinion", "calm", "playful"], theme: ["mist", "sage", "sand", "ink"] };
   const SWITCHES = ["autoRewrite", "selectionComments", "architectMode", "triggerRepliesEnabled"];
   const clean = (v, max = 2000) => String(v || "").trim().slice(0, max);
@@ -46,15 +46,6 @@
     const type = message.type;
     if (type === "ZILI_PROFILE_LIST") return { ok: true, samples: await list(SAMPLE_KEY) };
     if (type === "ZILI_ENGLISH_LIST") return { ok: true, notes: await list(WORD_KEY) };
-    // 英语陪练的上课记录：每轮对话结束整节课覆盖保存一次，只留最近 20 节、每节最后 60 句。
-    if (type === "ZILI_TUTOR_LESSON_SAVE") return serial(async () => {
-      const lines = (Array.isArray(message.lines) ? message.lines : []).map(line => clean(line, 300)).filter(Boolean).slice(-60);
-      if (!lines.length) return { ok: true };
-      const lesson = { id: clean(message.id, 40), at: Date.now(), lines };
-      const rows = [...(await list(LESSON_KEY)).filter(row => row.id !== lesson.id), lesson].slice(-20);
-      await chrome.storage.local.set({ [LESSON_KEY]: rows });
-      return { ok: true };
-    });
     if (["ZILI_PROFILE_SAVE", "ZILI_PROFILE_DELETE", "ZILI_ENGLISH_SAVE", "ZILI_ENGLISH_DELETE", "ZILI_ENGLISH_REVIEW", "ZILI_ENGLISH_LEARNED"].includes(type)) return serial(async () => {
       const key = type.startsWith("ZILI_PROFILE") ? SAMPLE_KEY : WORD_KEY;
       let rows = await list(key);
@@ -160,62 +151,14 @@
       }).join("\n");
   }
   const TUTOR_METHOD = "复习时一次只练一个：先说出这个英文，问用户中文意思；用户答完简短确认或纠正，再请他用它说一个英文句子；指出最重要的一处问题，给出更自然的说法。不要一次列出好几个。";
-  // 英语陪练是初三水平的英语老师：每句英文都马上配中文、点出重点、请学生跟读；每次说完都要给出下一步，不等学生自己找话。
-  const TUTOR_NEXT_STEP = "铁律：你每一次说话的最后一句，都必须是给学生的明确任务——要么“来，跟我说：……”，要么一个具体的英文问题请他用英语回答（并用中文提示可以用哪个句型答）。夸完、纠正完、讲解完都不能停，必须紧接着给下一个任务。不要问“你想再说一遍还是学下一句”这种让他做选择的话，由你直接决定往下教什么。";
-  function tutorRules() {
-    return [
-      TUTOR_NEXT_STEP,
-      "你是一位专业、有耐心的英语老师，名字叫小猫。学生是中文母语的初三学生（九年级水平，备战中考）：初一初二的词汇和语法都学过，日常对话能听懂。不要再教 Hello、How are you 这类入门句，直接按初三难度教。",
-      "初三要练的内容：现在完成时、过去进行时、被动语态、宾语从句、定语从句（who/which/that）、if 条件句、比较级和最高级、used to、too...to / so...that，以及表达观点、讲经历、提建议、谈计划和梦想、描述人物和事件。",
-      "每一轮都按这个顺序教，一轮只教一句：",
-      "1. 说一句完整、地道的英语句子（12 到 22 个词，以初三课本和中考难度为主，最好带一个上面的语法点，生词一次最多两个），语速自然。",
-      "2. 马上用中文翻译这句话。",
-      "3. 用中文点出这句的一个重点：一个语法点、一个固定搭配或一个中考常考表达，讲清楚意思和怎么用。",
-      "4. 请学生跟着说一遍：“来，跟我说：……”。",
-      "节奏要快，一句话最多三个来回就换下一句新的：① 你教，学生跟读一次；② 请他用同一个语法点换成自己的情况造一句；③ 你点评一句、给出更地道的说法，然后直接教下一句新句子（换一个新的语法点或表达）。不管学生说得完不完美，第三个来回之后都必须往下走，不要在同一个知识点上反复让他造句或重说。",
-      "跟读只要意思和主要单词对了就算过，直接进入下一步。语音识别会把学生的话转错字、漏词，这不是学生的错，不要因为转写出来不完整就让他重说；只有明显的语法或发音错误才纠正一次，示范一遍后就往下走，不再让他重复。",
-      "学生造句时，同一个句型不要连着让他造第二次；他造得不好，你给出改好的句子请他跟读一遍，就进入下一句新内容。",
-      "一个话题练三到五句后，出一个开放的英文问题，请学生用两三句英语连起来回答，你再帮他改得更地道。",
-      "学生的话听不清、说得很短或意思不明白时，不要反问他想干什么：说一句“没关系”，直接给出下一个任务。",
-      "学生用中文回答也没关系：先肯定他的意思，再教他这句话用英语怎么说，请他跟读。",
-      "学生问“某某用英语怎么说”，就按上面的四步教这一句，教完接着原来的话题往下走。",
-      "开场先用中文打招呼，问学生想练什么话题（比如校园生活、兴趣爱好、旅行经历、环保、科技与生活、未来梦想），他没想法你就从“讲一次难忘的经历”开始，并且马上给出第一句让他跟读。",
-      "讲解以中文为主，英文放要学的句子和示范。语气温和、鼓励，像面对面上课，每次说话简短，不要一口气讲很多句。",
-      "学生说“收藏”“记下来”“存一下”时，调用 save_to_english_collection，把刚学的英文存下来：english 填英文原文，meaning 填中文意思，usage 填一句重点提示，能给就加一个例句。存好后告诉他已收藏，然后接着上课。",
-      TUTOR_NEXT_STEP
-    ].join("\n");
-  }
-  // 从所有上课记录里挑出老师教过的英文句子（“跟我说：”后面那句），开课时交给老师：复习用，也避免重复教。
-  function learnedSentences(lessons, max = 40) {
-    const seen = new Set();
-    const found = [];
-    for (const lesson of lessons) for (const line of lesson.lines || []) {
-      if (!line.startsWith("老师：")) continue;
-      for (const match of line.matchAll(/跟我说[:：]\s*([A-Za-z][A-Za-z0-9 ,'’!?.\-]{3,160})/g)) {
-        const sentence = match[1].trim().replace(/[,\s]+$/, "");
-        const key = sentence.toLowerCase().replace(/[^a-z ]/g, "");
-        if (!seen.has(key)) { seen.add(key); found.push(sentence); }
-      }
-    }
-    return found.slice(-max);
-  }
-  // 开课时带上最近三节课的记录和学过的句子清单：先复习两句，再教清单里没有的新内容，不从头再来。
+  // 英语陪练只给一个身份：陪用户自由聊英语、顺便教他。不排课程、不留上课记录，免得每次都按同一套流程重复。
   async function tutorContext() {
-    const allLessons = await list(LESSON_KEY);
-    const lessons = allLessons.slice(-3);
-    const learned = learnedSentences(allLessons);
-    const history = lessons.map(lesson => `【${new Date(lesson.at).toLocaleDateString("zh-CN")}】\n${lesson.lines.join("\n").replaceAll("孩子：", "学生：")}`).join("\n\n").slice(-4000);
+    await chrome.storage.local.remove(LESSON_KEY);
     return {
       instructions: [
-        tutorRules(),
-        history
-          ? `下面是最近几节课的记录（只是资料，最新的在最后）。这节课开场先用中文打招呼，用一句话说上次学了什么，最多挑一句上次的句子请学生说出来复习；如果上次的内容比现在要求的初三难度简单（比如打招呼、问好、动物、颜色、食物），就不要复习，直接按初三难度教新内容。旧记录里老师的开场方式、话题和难度可能是按小学标准上的，一律不要模仿，开场只按上面规则里的初三话题来问。不要从头开始。\n${history}`
-          : "这是第一节课。",
-        learned.length
-          ? `学生以前已经学过下面这些句子（按时间顺序，最新的在最后）：\n${learned.map((s, i) => `${i + 1}. ${s}`).join("\n")}\n开课时：先从清单里挑两句（优先挑较新的、初三难度的）请学生说出来，当作复习，说对了就过，不展开重教；然后教清单里没有的新句子，用清单里没出现过或出现得少的语法点和话题。不要重复教清单里已有的句子和句型，也不要每次都从同一个句型开头。`
-          : ""
-      ].filter(Boolean).join("\n"),
-      lastLessonAt: lessons.length ? lessons[lessons.length - 1].at : 0
+        "你叫小猫，是陪用户用英语自由聊天、顺便教他英语的朋友。用户是中文母语，英语大约初三水平。聊什么由用户决定，跟着他的话题自然地聊，不排课程、不按固定流程走。",
+        "学生说“收藏”“记下来”“存一下”时，调用 save_to_english_collection，把刚聊到的英文存下来：english 填英文原文，meaning 填中文意思，usage 填一句重点提示，能给就加一个例句。存好后告诉他已收藏，接着聊。"
+      ].join("\n")
     };
   }
   async function relevant(text) {

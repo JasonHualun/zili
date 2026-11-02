@@ -169,30 +169,12 @@
     const player = createPlayer();
     const level = $("[data-level] i");
     let socket = null, ready = false, tutorLine = null;
-    // 上课记录：老师和学生说的每一句都记下来，每轮结束整节课保存一次，中途关窗也不丢。
-    const lessonId = String(Date.now());
-    const lessonLines = [];
-    const saveLesson = () => void chrome.runtime.sendMessage({ type: "ZILI_TUTOR_LESSON_SAVE", id: lessonId, lines: lessonLines });
-    // 节奏由程序把关：语音模型常在一个知识点上反复让人造句，而通义实时语音不支持中途插文字命令。
-    // 所以老师连说三轮、学生又答完一次后，悄悄重连一次：新的开课规则里直接写“马上换新句子”，并让老师先开口。
-    let tutorTurns = 0;
-    const OPENING = "【开课】现在由你先开口：用中文简短打招呼，然后马上按四步教第一句（英文—中文翻译—一个重点—来，跟我说）。";
-    const switchNow = () => [
-      "【换新内容】下面是这节课刚才的对话（只是资料）：",
-      lessonLines.slice(-10).join("\n"),
-      "这个知识点已经练够了。现在由你先开口：用一句中文简短点评学生最后说的那句，然后直接教一个全新的英语句子，换一个和刚才不同的语法点或表达，按“英文—中文翻译—一个重点—来，跟我说”的顺序。不要再让学生用刚才的句型造句，也不要重复刚才的句子。"
-    ].join("\n");
-
-    const dropTutorLine = () => {
-      if (tutorLine?.textContent) { lessonLines.push(`老师：${tutorLine.textContent}`); saveLesson(); }
-      tutorLine = null;
-    };
     // 老师说话时麦克风是关着的（防止喇叭声音被收回去把它自己掐断），想插话就点“打断”：停掉声音、取消这次回答，麦克风马上打开。
     const interrupt = () => {
       if (!player.speaking()) return;
       player.interrupt();
       if (socket?.readyState === WebSocket.OPEN) socket.send(JSON.stringify({ type: "response.cancel" }));
-      dropTutorLine();
+      tutorLine = null;
       interruptButton.hidden = true;
       status("已打断，你说吧");
     };
@@ -207,7 +189,7 @@
       if (ready && !player.speaking() && socket?.readyState === WebSocket.OPEN) socket.send(JSON.stringify({ type: "input_audio_buffer.append", audio: toBase64(data) }));
     };
 
-    function connect(extra) {
+    function connect() {
       const ws = new WebSocket(prepared.url);
       let opened = false;
       socket = ws;
@@ -219,7 +201,7 @@
         session: {
           modalities: ["text", "audio"],
           voice: "Tina",
-          instructions: `${prepared.instructions}\n${extra}`,
+          instructions: prepared.instructions,
           input_audio_format: "pcm",
           output_audio_format: "pcm",
           input_audio_transcription: { model: "qwen3-asr-flash-realtime" },
@@ -238,29 +220,12 @@
           ready = true;
           toggle.disabled = false;
           setRunning(true);
-          // 老师先开口，不用等学生找话。
-          ws.send(JSON.stringify({ type: "response.create" }));
-          if (extra === OPENING) {
-            status(prepared.lastLessonAt
-              ? `接着 ${new Date(prepared.lastLessonAt).toLocaleDateString("zh-CN")} 那节课往下上；它说话时先听它说完`
-              : "第一节课，老师会先开口；它说话时先听它说完");
-          } else status("换一句新的");
+          status("开始聊吧，说中文英文都行；它说话时可以点打断");
         } else if (event.type === "input_audio_buffer.speech_started") {
           player.interrupt();
           tutorLine = null;
         } else if (event.type === "conversation.item.input_audio_transcription.completed" && event.transcript) {
           bubble("me", event.transcript);
-          lessonLines.push(`学生：${event.transcript}`);
-          saveLesson();
-          if (tutorTurns >= 3) {
-            // 学生答完了第三轮的任务：丢掉服务端按老规则准备的回答，重连换新内容。
-            tutorTurns = 0;
-            ws.send(JSON.stringify({ type: "response.cancel" }));
-            player.interrupt();
-            if (tutorLine) { tutorLine.remove(); tutorLine = null; }
-            ws.close();
-            connect(switchNow());
-          }
         } else if (event.type === "response.audio_transcript.delta") {
           tutorLine ||= bubble("tutor");
           tutorLine.textContent += event.delta || "";
@@ -274,8 +239,7 @@
             ws.send(JSON.stringify({ type: "response.create" }));
           });
         } else if (event.type === "response.done") {
-          if (tutorLine?.textContent) tutorTurns += 1;
-          dropTutorLine();
+          tutorLine = null;
         } else if (event.type === "error") {
           status(event.error?.message || "通义返回了错误");
         }
@@ -287,7 +251,7 @@
         stop();
       };
     }
-    connect(OPENING);
+    connect();
   }
 
   function stop() {
