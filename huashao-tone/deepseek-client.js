@@ -596,16 +596,20 @@
                 "这是补充润色。只有两种输入可以生成：一是明确主题或写作指令，inputType=topic；二是已经能看出对象、方向和表达意图的开头，inputType=opening。",
                 "只有几个含义不明的字、半句话、孤立名词或看不出想往哪里写时，必须 ready=false、inputType=unclear、output 留空，不能替用户猜方向。",
                 "识别清楚后，顺着原意补成可直接继续编辑的成稿。",
-                "不能编造用户没提供的亲身经历、数据、引用、发布时间或确定事实；主题涉及最新消息时只能写观点框架，不得假装已经联网核实。",
+                "不能编造用户没提供的亲身经历、数据、引用、发布时间或确定事实。",
+                "标题里出现的作品名、人名、地名照原样使用，不改字、不缩短、不换成别的作品（没有书名号也是名字，比如「牛来」不能写成「牛」）。",
+                input.webSearch
+                  ? "已开启联网搜索：标题提到电影、书、剧、游戏、人物或事件时，先搜索弄清它是什么、讲了什么，再按搜到的真实信息写；搜不到就照原名写观点和感受，不编剧情、演员、数据。"
+                  : "主题涉及具体作品或最新消息时，没把握的细节不写，只写观点框架，不得假装已经联网核实。",
                 input.fromTitle ? "用户在标题框里写的是文章标题或写作指令，按它写正文，结果会填进正文框：只输出正文，不重复标题，不另起标题；这种输入一律 inputType=topic。" : "",
                 Number(input.targetChars) > 0
                   ? `用户指定了约 ${Math.round(Number(input.targetChars))} 字，按这个字数写，上下浮动一成以内，忽略下面的长度档。`
                   : "",
                 lengthTier === "short"
-                  ? "短：写成 40-80 个汉字，通常 1-3 句。"
+                  ? "短：写成 200-300 个汉字，一条完整短推，2-3 个自然段，不得少于 200 字。"
                   : lengthTier === "medium"
-                    ? "中：写成 180-350 个汉字，像一条完整长帖。"
-                    : "长：写成 600-1000个汉字，最多是一篇 Thread 的长度；分成 4-7 个自然段，段落之间有推进，不写成正式长文章。"
+                    ? "中：写成 450-600 个汉字，4-6 个自然段，不得少于 450 字。"
+                    : "长：写成 800-1200 个汉字，6-10 个自然段，段落之间有推进，不得少于 800 字。"
               ].filter(Boolean).join("\n")
             : [
                 "用户正在网页的输入框里写草稿。只润色原本内容：保留原意、事实、立场和信息边界，不把草稿改成另一个观点，也不主动增加新事实。",
@@ -927,7 +931,7 @@
     const parsed = parseJsonCandidate(value);
     if (!parsed) throw new Error(`${provider}_invalid_json`);
     const ready = parsed.ready !== false;
-    const output = ready ? cleanText(parsed.output, 2000) : "";
+    const output = ready ? cleanText(parsed.output, 6000) : "";
     if (ready && !output) throw new Error(`${provider}_empty_output`);
         const verdict = ["基本属实", "部分属实", "疑似虚假", "证据不足"].includes(parsed.verdict)
           ? parsed.verdict
@@ -1110,9 +1114,7 @@
         temperature: 0.58
       },
       expand: {
-        maxTokens: Number(input.targetChars) > 0
-          ? Math.min(4800, Math.max(360, Math.round(Number(input.targetChars) * 1.6)))
-          : lengthTier === "long" ? 1800 : lengthTier === "medium" ? 760 : 360,
+        maxTokens: expandMaxTokens(input),
         temperature: 0.62
       }
     }[mode];
@@ -1155,7 +1157,7 @@
       }
       const webSearch = (provider === "qwen" || provider === "custom")
         && selectedModelConfig.capabilities.includes("webSearch")
-        && (mode === "answer" || mode === "verify" || mode === "followup")
+        && (mode === "answer" || mode === "verify" || mode === "followup" || mode === "expand")
         && input.webSearch === true;
       if (webSearch) {
         requestBody.enable_search = true;
@@ -1214,6 +1216,18 @@
     return { inputTokens, outputTokens, totalTokens: inputTokens + outputTokens };
   }
 
+  function expandMaxTokens(input) {
+    const targetChars = Number(input.targetChars) || 0;
+    if (targetChars > 0) return Math.min(6000, Math.max(800, Math.round(targetChars * 1.8)));
+    return input.lengthTier === "long" ? 2600 : input.lengthTier === "medium" ? 1400 : 800;
+  }
+
+  function expandMinChars(input) {
+    const targetChars = Number(input.targetChars) || 0;
+    if (targetChars > 0) return Math.round(targetChars * 0.85);
+    return input.lengthTier === "long" ? 800 : input.lengthTier === "medium" ? 450 : 200;
+  }
+
   async function generateWebSearch(input, options = {}) {
     const config = providerConfig(options.provider);
     const provider = config.id;
@@ -1240,7 +1254,7 @@
     const startedAt = Date.now();
     const timer = setTimeout(() => controller.abort(), TIMEOUT_MS * 2);
     const tools = [{ type: "web_search_20250305", name: "web_search", max_uses: 5 }];
-    const maxTokens = mode === "verify" ? 1000 : 700;
+    const maxTokens = mode === "verify" ? 1000 : mode === "expand" ? expandMaxTokens(input) : 700;
     const system = buildPrompt({ ...input, webSearch: true });
     let messages = [{ role: "user", content: buildUserMessage(input) }];
     let usage = null;
@@ -1261,7 +1275,7 @@
             system,
             messages,
             tools,
-            temperature: mode === "verify" ? 0.12 : 0.2,
+            temperature: mode === "verify" ? 0.12 : mode === "expand" ? 0.62 : 0.2,
             thinking: { type: "disabled" }
           }),
           signal: controller.signal
@@ -1439,6 +1453,7 @@
     platformFromHost,
     generate,
     generateWebSearch,
+    expandMinChars,
     generateVision,
     normalizeUsage,
     normalizeFollowupInput,

@@ -2430,7 +2430,7 @@
   function requestedChars(text) {
     const match = String(text).match(/(\d{2,4})\s*(?:个)?(?:字|汉字)/);
     const value = match ? Number(match[1]) : 0;
-    return value >= 20 && value <= 3000 ? value : 0;
+    return value >= 20 && value <= 5000 ? value : 0;
   }
 
   const WRITE_REQUEST = /(?:帮我|给我|替我|麻烦你?|请你?)(?:写|编|回|想|来)|写一?(?:篇|段|条|个|句)/;

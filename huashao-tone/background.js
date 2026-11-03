@@ -47,7 +47,7 @@ function responseCacheKey(mode, message, settings, provider, model) {
     lengthTier: ["short", "medium", "long"].includes(message.lengthTier) ? message.lengthTier : "short",
     rewriteLength: ["short", "medium", "long"].includes(message.rewriteLength) ? message.rewriteLength : "",
     fromTitle: message.fromTitle === true,
-    targetChars: Math.min(3000, Math.max(0, Number(message.targetChars) || 0)),
+    targetChars: Math.min(5000, Math.max(0, Number(message.targetChars) || 0)),
     settings
   });
 }
@@ -611,6 +611,8 @@ async function testConnection() {
   }
 }
 
+const TOPIC_SEARCH_PATTERN = /观后感|读后感|影评|书评|剧评|乐评|测评|评测|电影|影片|纪录片|电视剧|网剧|综艺|动画|番剧|小说|新书|专辑|游戏|《[^》]+》|最新|发布会|新闻|事件/;
+
 function resolveWebSearchEngine(engine) {
   const selectedProvider = engine.provider;
   const selectedModel = engine.models[selectedProvider];
@@ -646,9 +648,13 @@ async function optimize(message) {
     ? message.mode
     : "rewrite";
   const engine = await readModelEngine();
+  const wantsTopicSearch = mode === "expand" && TOPIC_SEARCH_PATTERN.test(String(message.text || ""));
+  const topicSearchEngine = wantsTopicSearch ? resolveWebSearchEngine(engine) : null;
+  // Topic search is best effort: without a search-capable model the draft is still written offline.
   const needsWebSearch = mode === "verify"
-    || (["answer", "followup"].includes(mode) && message.webSearch === true);
-  const searchEngine = needsWebSearch ? resolveWebSearchEngine(engine) : null;
+    || (["answer", "followup"].includes(mode) && message.webSearch === true)
+    || Boolean(topicSearchEngine);
+  const searchEngine = needsWebSearch ? (topicSearchEngine || resolveWebSearchEngine(engine)) : null;
   if (needsWebSearch && !searchEngine) {
     return { ok: false, error: "web_search_model_required", provider: engine.provider };
   }
@@ -688,7 +694,7 @@ async function optimize(message) {
         : "short",
       rewriteLength: ["short", "medium", "long"].includes(message.rewriteLength) ? message.rewriteLength : "",
       fromTitle: message.fromTitle === true,
-      targetChars: Math.min(3000, Math.max(0, Number(message.targetChars) || 0)),
+      targetChars: Math.min(5000, Math.max(0, Number(message.targetChars) || 0)),
       sentenceForm: message.sentenceForm === "question" ? "question" : "statement",
       replyContext: message.replyContext === "emotional-vent" ? "emotional-vent" : "ordinary",
       webSearch: needsWebSearch,
@@ -742,6 +748,21 @@ async function optimize(message) {
         runtimeState.lastLatencyMs = totalLatencyMs || null;
         runtimeState.lastAt = new Date().toISOString();
         return { ok: false, error: "fresh_output_repeated", mode };
+      }
+    }
+    if (mode === "expand" && result.ready !== false) {
+      const minChars = globalThis.ZiliModelClient.expandMinChars(generationInput);
+      const writtenChars = String(result.output || "").replace(/\s/g, "").length;
+      if (writtenChars < minChars * 0.85) {
+        const longer = await generateCandidate({
+          ...generationInput,
+          toneFeedback: `你只写了约 ${writtenChars} 字，要求至少 ${minChars} 字。保留现有内容的方向，补足段落写够字数。`
+        }).catch(() => null);
+        if (longer) {
+          totalLatencyMs += Number(longer.latencyMs) || 0;
+          totalUsage = mergeUsage(totalUsage, longer.usage);
+          if (String(longer.output || "").replace(/\s/g, "").length > writtenChars) result = longer;
+        }
       }
     }
     let repaired = false;
