@@ -220,7 +220,7 @@
           ready = true;
           toggle.disabled = false;
           setRunning(true);
-          status("开始聊吧，说中文英文都行；它说话时可以点打断");
+          status("开始聊吧，小猫默认说英语，你说中文英文都行；它说话时可以点打断");
         } else if (event.type === "input_audio_buffer.speech_started") {
           player.interrupt();
           tutorLine = null;
