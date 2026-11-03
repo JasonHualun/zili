@@ -4,7 +4,7 @@
   const KNOWN_CARDS = [
     "ytd-rich-item-renderer", "ytd-video-renderer", "ytd-compact-video-renderer", "ytd-grid-video-renderer",
     "ytd-reel-item-renderer", "ytm-shorts-lockup-view-model", "section.note-item", ".bili-video-card", ".feed-card",
-    "article"
+    ".floor-single-card", ".bili-live-card", "article"
   ].join(",");
   const AD_SELECTORS = [
     "ytd-ad-slot-renderer", "ytd-in-feed-ad-layout-renderer", "ytd-promoted-sparkles-web-renderer",
@@ -44,6 +44,13 @@
 
   function collectCards() {
     const cards = new Set([...document.querySelectorAll(KNOWN_CARDS)].filter(visible));
+    // 信息流里常混着别的样式的卡（B 站的番剧、国创、直播）：和已知卡片同在一个网格里的兄弟也算。
+    const grids = new Map();
+    for (const card of cards) grids.set(card.parentElement, (grids.get(card.parentElement) || 0) + 1);
+    for (const [grid, count] of grids) {
+      if (!grid || count < 3) continue;
+      for (const sibling of grid.children) if (visible(sibling)) cards.add(sibling);
+    }
     if (cards.size < 3) {
       for (const link of document.querySelectorAll("a[href]")) {
         if (cleanText(link).length < 6 || link.closest(OWN_HOSTS)) continue;
