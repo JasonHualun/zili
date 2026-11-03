@@ -668,7 +668,7 @@
         ].join("\n")
       : "";
     const toneFeedback = needsIntentGate
-      ? cleanText(input.toneFeedback, 800)
+      ? cleanText(input.toneFeedback, 3600)
       : "";
     const writingPriority = needsIntentGate
       ? [

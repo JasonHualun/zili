@@ -611,6 +611,7 @@ async function testConnection() {
   }
 }
 
+const TOPIC_SEARCH_BUDGET_MS = 35_000;
 const TOPIC_SEARCH_PATTERN = /观后感|读后感|影评|书评|剧评|乐评|测评|评测|电影|影片|纪录片|电视剧|网剧|综艺|动画|番剧|小说|新书|专辑|游戏|《[^》]+》|最新|发布会|新闻|事件/;
 
 function resolveWebSearchEngine(engine) {
@@ -725,10 +726,35 @@ async function optimize(message) {
         ? (searchEngine?.capabilities || engine.custom.capabilities)
         : undefined
     };
-    const generateCandidate = input => needsWebSearch
+    // 写正文时的联网只是锦上添花：搜得慢或返回读不出来，就退回不联网直接写，不让用户干等。
+    const offlineOptions = topicSearchEngine && engine.apiKeys[engine.provider]
+      ? {
+          abortKey: message.abortKey,
+          apiKey: engine.apiKeys[engine.provider],
+          provider: engine.provider,
+          model: engine.models[engine.provider],
+          apiUrl: engine.provider === "custom" ? engine.custom.apiUrl : undefined,
+          capabilities: engine.provider === "custom" ? engine.custom.capabilities : undefined
+        }
+      : providerOptions;
+    let searchActive = needsWebSearch;
+    const generateCandidate = input => searchActive
       ? globalThis.ZiliModelClient.generateWebSearch(input, providerOptions)
-      : globalThis.ZiliModelClient.generate(input, providerOptions);
-    let result = await generateCandidate(generationInput);
+      : globalThis.ZiliModelClient.generate(input, offlineOptions);
+    let result;
+    if (topicSearchEngine) {
+      let budgetTimer = 0;
+      result = await Promise.race([
+        generateCandidate(generationInput),
+        new Promise((_, reject) => { budgetTimer = setTimeout(() => reject(new Error("topic_search_slow")), TOPIC_SEARCH_BUDGET_MS); })
+      ]).catch(() => null).finally(() => clearTimeout(budgetTimer));
+      // 搜过一次就够了：后面补字数、改口吻都在这版基础上离线改，不再重复联网。
+      searchActive = false;
+      generationInput.webSearch = false;
+      if (!result) result = await generateCandidate(generationInput);
+    } else {
+      result = await generateCandidate(generationInput);
+    }
     let totalLatencyMs = Number(result.latencyMs) || 0;
     let totalUsage = result.usage || null;
     let variationRetried = false;
@@ -757,7 +783,7 @@ async function optimize(message) {
       if (writtenChars < minChars * 0.85) {
         const longer = await generateCandidate({
           ...generationInput,
-          toneFeedback: `你只写了约 ${writtenChars} 字，要求至少 ${minChars} 字。保留现有内容的方向，补足段落写够字数。`
+          toneFeedback: `你只写了约 ${writtenChars} 字，要求至少 ${minChars} 字。在下面这版的基础上补足段落写够字数，保留其中的事实和方向，不新增没把握的细节：\n${String(result.output || "").slice(0, 3000)}`
         }).catch(() => null);
         if (longer) {
           totalLatencyMs += Number(longer.latencyMs) || 0;
