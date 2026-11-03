@@ -125,14 +125,15 @@
       if(view==='tools')renderTools();else if(view==='collect')void collect?.show();else q('textarea').focus();
       position();
     }
+    function filterOn(){const s=globalThis.ZiliPageFilter?.status();return Boolean(s&&(s.filtered>0||s.watching));}
     function renderTools() {
-      const pressed={filter:globalThis.ZiliPageFilter?.status().filtered>0,copy:Boolean(globalThis.ZiliPageCopy?.isActive()),subtitles:Boolean(globalThis.ZiliVideoSubtitles?.isActive())};
+      const pressed={filter:filterOn(),copy:Boolean(globalThis.ZiliPageCopy?.isActive()),subtitles:Boolean(globalThis.ZiliVideoSubtitles?.isActive())};
       panel.querySelectorAll('[data-tool]').forEach(b=>b.setAttribute('aria-pressed',String(Boolean(pressed[b.dataset.tool]))));
     }
     async function runTool(tool) {
       let action;
       if(tool==='filter'){
-        if(globalThis.ZiliPageFilter?.status().filtered>0)action={type:'restore'};
+        if(filterOn())action={type:'restore'};
         else{const data=await chrome.storage.local.get(PAGE_FILTER_KEY).catch(()=>({}));action={type:'filter',instruction:String(data?.[PAGE_FILTER_KEY]||'').trim()||DEFAULT_PAGE_FILTER};}
       }else if(tool==='copy')action={type:'copy_mode',on:!globalThis.ZiliPageCopy?.isActive()};
       else if(tool==='subtitles')action={type:'subtitles',on:!globalThis.ZiliVideoSubtitles?.isActive()};
@@ -190,7 +191,7 @@
       if(action.type==='restore'){filter.restore();return '已恢复本页';}
       status('正在整理这一页…');
       const r=await filter.filter(action.instruction);
-      return r.ok?`看了 ${r.total} 条，隐藏 ${r.hidden} 条`:r.error;
+      return r.ok?`看了 ${r.total} 条，隐藏 ${r.hidden} 条，往下滑也会接着筛`:r.error;
     }
     q('form').onsubmit=async event=>{event.preventDefault();const text=q('textarea').value.trim();if(busy||(!text&&!image))return;busy=true;const id=++revision;q('button[type="submit"]').disabled=true;status('正在回复…');
       try{const r=await request({type:'ZILI_ASSIST',action:'chat',text,history:history.slice(-10).map(m=>({role:m.role,content:m.draft?`${m.content}\n${m.draft}`:m.content})),imageDataUrl:image?.dataUrl||'',page:pageSnapshot()});if(id!==revision)return;history=[...history,{role:'user',content:text||'［发送了一张图片］'},{role:'assistant',content:r.text,...(r.draft?{draft:r.draft}:{})}].slice(-24);await chrome.storage.local.set({[KEY]:history});q('textarea').value='';clearImage();render();const changed=await applyProposal(r.proposal);const pageResult=await runPageAction(r.pageAction);if(r.pageAction)renderShortcuts((await request({type:'GET_SETTINGS'})).settings);status(pageResult||(changed?'已修改，可撤销':'已回复'));position();}catch(e){status(e.message);}finally{busy=false;q('button[type="submit"]').disabled=false;}};

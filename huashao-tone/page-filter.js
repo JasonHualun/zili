@@ -16,6 +16,9 @@
   const AD_LABELS = new Set(["广告", "推广", "赞助", "赞助内容", "Ad", "Ads", "Sponsored", "Promoted"]);
   const OWN_HOSTS = "#huashao-tone-root, [id^='zili-'], [id^='huashao-']";
   const BATCH_SIZE = 60;
+  const WATCH_IDLE_MS = 1200;
+  // 脱水后继续盯着这一页：往下滑新加载出来的卡片也按同一句话筛。判过的卡记在 judged 里，不重复花钱。
+  const watch = { instruction: "", href: "", observer: null, timer: 0, running: false, judged: new WeakSet() };
 
   function visible(el) {
     const rect = el.getBoundingClientRect();
@@ -71,7 +74,14 @@
     return true;
   }
 
+  function stopWatching() {
+    watch.observer?.disconnect();
+    clearTimeout(watch.timer);
+    Object.assign(watch, { instruction: "", href: "", observer: null, timer: 0, judged: new WeakSet() });
+  }
+
   function restore() {
+    stopWatching();
     let count = 0;
     for (const el of document.querySelectorAll("[data-zili-hidden]")) {
       const previous = el.dataset.ziliPrevDisplay;
@@ -99,11 +109,7 @@
     return { ok: true, hidden };
   }
 
-  async function filterByInstruction(instruction, send) {
-    const text = String(instruction || "").trim().slice(0, 200);
-    if (!text) return { ok: false, error: "请说要留下或去掉什么" };
-    const cards = collectCards();
-    if (!cards.length) return { ok: false, error: "这一页没有找到可判断的内容" };
+  async function judgeCards(text, cards, send) {
     let hidden = 0;
     for (let start = 0; start < cards.length; start += BATCH_SIZE) {
       const batch = cards.slice(start, start + BATCH_SIZE);
@@ -113,16 +119,58 @@
         items: batch.map((card, index) => ({ i: index, t: cleanText(card) }))
       });
       if (!response?.ok) return { ok: false, error: response?.error || "模型判断失败", hidden };
+      batch.forEach(card => watch.judged.add(card));
       for (const index of response.hide) if (batch[index] && hide(batch[index], "filter")) hidden += 1;
     }
     return { ok: true, hidden, total: cards.length };
+  }
+
+  async function judgeNewCards(send) {
+    // 换了页面（单页应用里点进别的页）就不再按旧指令筛。
+    if (!watch.instruction || location.href !== watch.href) return stopWatching();
+    if (watch.running) return scheduleWatch(send);
+    const fresh = collectCards().filter(card => !watch.judged.has(card));
+    if (!fresh.length) return;
+    watch.running = true;
+    try {
+      await judgeCards(watch.instruction, fresh, send);
+    } finally {
+      watch.running = false;
+    }
+  }
+
+  function scheduleWatch(send) {
+    clearTimeout(watch.timer);
+    watch.timer = setTimeout(() => void judgeNewCards(send), WATCH_IDLE_MS);
+  }
+
+  function startWatching(text, send) {
+    watch.observer?.disconnect();
+    watch.instruction = text;
+    watch.href = location.href;
+    watch.observer = new MutationObserver(mutations => {
+      if (mutations.some(m => m.addedNodes.length && !m.target.closest?.(OWN_HOSTS))) scheduleWatch(send);
+    });
+    watch.observer.observe(document.body, { childList: true, subtree: true });
+  }
+
+  async function filterByInstruction(instruction, send) {
+    const text = String(instruction || "").trim().slice(0, 200);
+    if (!text) return { ok: false, error: "请说要留下或去掉什么" };
+    stopWatching();
+    const cards = collectCards();
+    if (!cards.length) return { ok: false, error: "这一页没有找到可判断的内容" };
+    const result = await judgeCards(text, cards, send);
+    if (result.ok) startWatching(text, send);
+    return result;
   }
 
   function status() {
     return {
       ok: true,
       ads: document.querySelectorAll("[data-zili-hidden='ad']").length,
-      filtered: document.querySelectorAll("[data-zili-hidden='filter']").length
+      filtered: document.querySelectorAll("[data-zili-hidden='filter']").length,
+      watching: Boolean(watch.instruction)
     };
   }
 

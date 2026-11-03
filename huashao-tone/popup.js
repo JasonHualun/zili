@@ -268,7 +268,7 @@ async function toggleVideoTranslation() {
 }
 
 function renderPageClean(response) {
-  form.pageFilter.setAttribute("aria-pressed", String(response?.filtered > 0));
+  form.pageFilter.setAttribute("aria-pressed", String(response?.filtered > 0 || response?.watching === true));
 }
 
 async function pageCleanRequest(message) {
@@ -353,7 +353,7 @@ async function togglePageFilter() {
   form.pageCleanState.textContent = `正在按“${instruction}”整理这一页…`;
   const response = await pageCleanRequest({ type: "ZILI_PAGE_FILTER_RUN", instruction });
   form.pageCleanState.textContent = response?.ok
-    ? `看了 ${response.total} 条，隐藏 ${response.hidden} 条`
+    ? `看了 ${response.total} 条，隐藏 ${response.hidden} 条。往下滑新出来的也会自动筛，刷新网页就恢复`
     : response?.error || "脱水失败";
 }
 
