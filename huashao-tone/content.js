@@ -2366,7 +2366,9 @@
     if (/vision_model_required/i.test(error || "")) return "当前模型不能看图，请选择带“可识图”标识的模型";
     if (/vision_key_missing/i.test(error || "")) return "请先保存当前可识图模型的 API Key";
     if (/screenshot_image_invalid/i.test(error || "")) return "截图太大或格式不支持，请重新框选较小区域";
-    if (/model_request_invalid/i.test(error || "")) return "截图请求被当前模型拒绝，请在设置里重新选择模型";
+    if (/model_request_invalid/i.test(error || "")) return "这次请求被当前模型拒绝，请换个模型再试";
+    if (/model_server_error/i.test(error || "")) return "模型服务器出错了，稍后再试，这次没有改动你的草稿";
+    if (/model_network_error/i.test(error || "")) return "连不上模型服务，检查一下网络或代理";
     if (/model_not_found/i.test(error || "")) return "当前模型版本不可用，请在设置里重新选择";
     if (/web_search_model_required/i.test(error || "")) return "核验和时效搜索需要先配置支持联网的模型";
     if (/qwen_key_missing/i.test(error || "")) return "核验和时效搜索需要先保存通义千问 API Key";

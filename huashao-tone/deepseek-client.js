@@ -1099,6 +1099,10 @@
     if (message.includes("_http_402")) return "model_balance_insufficient";
     if (message.includes("_http_429")) return "model_rate_limited";
     if (/_(invalid_json|empty_output)/.test(message)) return "model_invalid_response";
+    if (/_http_(400|422)/.test(message)) return "model_request_invalid";
+    if (message.includes("_http_404")) return "model_not_found";
+    if (/_http_5\d\d/.test(message)) return "model_server_error";
+    if (/^[a-z]+_network/.test(message)) return "model_network_error";
     return "model_unavailable";
   }
 
@@ -1224,7 +1228,8 @@
       if (/^[a-z]+_(?:http_|invalid_json|empty_output|key_missing|unavailable)/.test(error?.message || "")) {
         throw error;
       }
-      throw new Error(`${provider}_unavailable`);
+      // fetch 本身失败（断网、代理、被拦）和服务器报错分开记，方便告诉用户到底是哪种。
+      throw new Error(error instanceof TypeError ? `${provider}_network` : `${provider}_unavailable`);
     } finally {
       clearTimeout(timer);
       release();
@@ -1339,7 +1344,7 @@
       if (/^(?:web_search_model_required|[a-z]+_(?:http_|invalid_json|empty_output|key_missing|unavailable))/.test(error?.message || "")) {
         throw error;
       }
-      throw new Error(`${provider}_unavailable`);
+      throw new Error(error instanceof TypeError ? `${provider}_network` : `${provider}_unavailable`);
     } finally {
       clearTimeout(timer);
       release();

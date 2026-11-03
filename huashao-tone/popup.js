@@ -1201,7 +1201,11 @@ async function checkConnection(verifyApi = false) {
     model_rate_limited: "请求太频繁",
     model_invalid_response: "返回格式不对",
     model_not_found: "模型名不对",
-    model_unavailable: "网络或服务暂时不通",
+    model_request_invalid: "请求被模型拒绝，换个模型试试",
+    model_server_error: "对方服务器出错，稍后再试",
+    model_network_error: "连不上，检查网络或代理",
+    engine_timeout: "等太久没回应",
+    model_unavailable: "服务暂时不可用",
     fresh_output_repeated: "换一版没换出来"
   };
   const directReady = Boolean(response?.ok && response.status === "ready");
