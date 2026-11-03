@@ -605,7 +605,11 @@
               ].join("\n")
             : [
                 "用户正在网页的输入框里写草稿。只润色原本内容：保留原意、事实、立场和信息边界，不把草稿改成另一个观点，也不主动增加新事实。",
-                "保持原文大致长度与信息量，只改表达；允许为了语法自然而小幅增减字数，但不得压成摘要，也不得扩写成新段落。"
+                input.rewriteLength === "short"
+                  ? "用户选了精简：压到原文六到七成长度，删掉重复、铺垫和口水话，原文的观点和关键信息一条不丢。"
+                  : input.rewriteLength === "long"
+                    ? "用户选了展开：写到原文一倍半左右，把原文已有的观点说透、补上过渡和解释，但不新增原文没有的事实、经历和数据。"
+                    : "保持原文大致长度与信息量，只改表达；允许为了语法自然而小幅增减字数，但不得压成摘要，也不得扩写成新段落。"
               ].join("\n");
     const sentenceFormInstruction = mode === "comment"
       ? sentenceForm === "question"
@@ -1098,7 +1102,7 @@
       followup: { maxTokens: 700, temperature: 0.35 },
       verify: { maxTokens: 1000, temperature: 0.12 },
       rewrite: {
-        maxTokens: 650,
+        maxTokens: input.rewriteLength === "long" ? 1600 : 650,
         temperature: 0.58
       },
       expand: {

@@ -53,6 +53,7 @@
     manualRewrite: null,
     manualMode: "rewrite",
     manualLength: "short",
+    rewriteLength: "medium",
     pendingRequest: null,
     tuneSettings: null,
     tuneChanged: false,
@@ -1021,9 +1022,9 @@
           </div>
           <div class="zili-manual-length" hidden>
             <span>长度</span>
-            <button class="is-selected" data-manual-length="short" type="button">短</button>
-            <button data-manual-length="medium" type="button">中</button>
-            <button data-manual-length="long" type="button">长</button>
+            <button class="is-selected" data-manual-length="short" data-rewrite-label="精简" type="button">短</button>
+            <button data-manual-length="medium" data-rewrite-label="原长" type="button">中</button>
+            <button data-manual-length="long" data-rewrite-label="展开" type="button">长</button>
           </div>
           <p class="zili-manual-note">当前是手动润色。想让字里自动处理，可以在插件设置里开启“自动润色”</p>
         </div>
@@ -1094,10 +1095,11 @@
     });
     state.shadow.querySelectorAll("[data-manual-length]").forEach(button => {
       button.addEventListener("click", () => {
-        state.manualLength = button.dataset.manualLength;
-        state.manualMode = "expand";
+        // 润色和补充各记各的长度：润色默认保持原长，补充默认写短。
+        if (state.manualMode === "rewrite") state.rewriteLength = button.dataset.manualLength;
+        else state.manualLength = button.dataset.manualLength;
         renderManualControls();
-        requestManualRewrite("expand");
+        requestManualRewrite(state.manualMode);
       });
     });
     state.shadow.querySelector(".zili-regenerate").addEventListener("click", regenerateCandidate);
@@ -1723,9 +1725,12 @@
       button.classList.toggle("is-selected", button.dataset.manualMode === state.manualMode);
     });
     const lengthControls = state.shadow?.querySelector(".zili-manual-length");
-    if (lengthControls) lengthControls.hidden = state.manualMode !== "expand";
+    if (lengthControls) lengthControls.hidden = false;
+    const rewriting = state.manualMode !== "expand";
+    const selected = rewriting ? state.rewriteLength : state.manualLength;
     state.shadow?.querySelectorAll("[data-manual-length]").forEach(button => {
-      button.classList.toggle("is-selected", button.dataset.manualLength === state.manualLength);
+      button.textContent = rewriting ? button.dataset.rewriteLabel : { short: "短", medium: "中", long: "长" }[button.dataset.manualLength];
+      button.classList.toggle("is-selected", button.dataset.manualLength === selected);
     });
   }
 
@@ -1962,6 +1967,7 @@
             mode: manualMode,
             manualTrigger: true,
             lengthTier: state.manualLength,
+            rewriteLength: manualMode === "rewrite" ? state.rewriteLength : "",
             directApply: true
           });
         }
@@ -1981,6 +1987,7 @@
       mode: manualMode,
       manualTrigger: true,
       lengthTier: state.manualLength,
+      rewriteLength: manualMode === "rewrite" ? state.rewriteLength : "",
       directApply: true
     });
   }
@@ -2107,7 +2114,7 @@
     if (state.currentVision?.imageDataUrl) {
       rerunVisionAs(state.currentComment?.mode || state.currentVision.requestedMode || "auto");
     } else if (state.currentRewrite?.sourceText) {
-      optimizeRewrite(true, state.currentRewrite.composer, { mode: state.currentRewrite.mode || "rewrite", lengthTier: state.currentRewrite.lengthTier || state.manualLength, manualTrigger: true });
+      optimizeRewrite(true, state.currentRewrite.composer, { mode: state.currentRewrite.mode || "rewrite", lengthTier: state.currentRewrite.lengthTier || state.manualLength, rewriteLength: state.currentRewrite.rewriteLength || "", manualTrigger: true });
     } else if (state.currentComment?.output) {
       optimizeComment(true);
     }
@@ -2400,6 +2407,7 @@
       context: composerContext(composer),
       manualTrigger,
       lengthTier,
+      rewriteLength: manualTrigger && requestMode === "rewrite" ? options.rewriteLength || "" : "",
       settingsOverride: candidateSettings(),
       forceFresh: force,
       variationNonce: force ? `${Date.now()}-${Math.random()}` : "",
@@ -2446,7 +2454,7 @@
         usageResult: response
       });
     } else {
-      showRewriteCandidate({ ...response, mode: manualMode, lengthTier }, liveComposer, text);
+      showRewriteCandidate({ ...response, mode: manualMode, lengthTier, rewriteLength: options.rewriteLength || "" }, liveComposer, text);
     }
   }
 
@@ -2565,6 +2573,8 @@
       pointerOwned: state.internalSelectionOrigin
     })) return; // ignore selections made inside 字里 UI
     if (!anchor || state.host?.contains(anchor) || resolveComposer(anchor)) return;
+    // 自己正在写的编辑区（包括被判成敏感框、不给润色的）里划线，是在改自己的稿，不是在看别人的帖子。
+    if (anchor.isContentEditable || anchor.closest?.('textarea, input, [contenteditable]:not([contenteditable="false"])')) return;
     const article = anchor.closest?.("article")
       || anchor.closest?.('[data-testid="tweet"]')
       || anchor.closest?.("main")

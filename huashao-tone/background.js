@@ -45,6 +45,7 @@ function responseCacheKey(mode, message, settings, provider, model) {
       ? globalThis.ZiliModelClient.normalizeFollowupInput(message.followup)
       : null,
     lengthTier: ["short", "medium", "long"].includes(message.lengthTier) ? message.lengthTier : "short",
+    rewriteLength: ["short", "medium", "long"].includes(message.rewriteLength) ? message.rewriteLength : "",
     settings
   });
 }
@@ -683,6 +684,7 @@ async function optimize(message) {
       lengthTier: ["short", "medium", "long"].includes(message.lengthTier)
         ? message.lengthTier
         : "short",
+      rewriteLength: ["short", "medium", "long"].includes(message.rewriteLength) ? message.rewriteLength : "",
       sentenceForm: message.sentenceForm === "question" ? "question" : "statement",
       replyContext: message.replyContext === "emotional-vent" ? "emotional-vent" : "ordinary",
       webSearch: needsWebSearch,
