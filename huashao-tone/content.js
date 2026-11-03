@@ -54,6 +54,8 @@
     manualMode: "rewrite",
     manualLength: "short",
     rewriteLength: "medium",
+    titleLength: "short",
+    lengthRedo: null,
     pendingRequest: null,
     tuneSettings: null,
     tuneChanged: false,
@@ -724,8 +726,52 @@
     return attached;
   }
 
+  // 润色、写正文之后，卡片上留一排篇幅按钮：点哪个就按哪个长度重写一版。
+  function renderLengthRedo() {
+    const row = state.shadow?.querySelector(".zili-length-redo");
+    if (!row) return;
+    const redo = state.lengthRedo;
+    const mode = state.shadow.querySelector(".zili-card")?.dataset.mode;
+    const live = redo && document.contains(redo.composer)
+      && ((mode === "comment" && state.currentRewrite)
+        || (mode === "status" && (state.rewriteUndo || redo.fromTitle) && !state.shadow.querySelector(".zili-status")?.classList.contains("is-busy")));
+    row.hidden = !live;
+    if (!live) return;
+    const labels = redo.mode === "rewrite" ? { short: "精简", medium: "原长", long: "展开" } : { short: "短", medium: "中", long: "长" };
+    row.querySelectorAll("[data-redo-length]").forEach(button => {
+      button.textContent = labels[button.dataset.redoLength];
+      button.classList.toggle("is-selected", button.dataset.redoLength === redo.length);
+    });
+  }
+
+  function redoWithLength(length) {
+    const redo = state.lengthRedo;
+    if (!redo || !document.contains(redo.composer)) return;
+    if (redo.mode === "rewrite") state.rewriteLength = length;
+    else if (redo.fromTitle) state.titleLength = length;
+    else state.manualLength = length;
+    const options = {
+      mode: redo.mode,
+      manualTrigger: true,
+      directApply: Boolean(state.rewriteUndo),
+      ignoreCharCount: true,
+      lengthTier: length,
+      rewriteLength: redo.mode === "rewrite" ? length : ""
+    };
+    // 已经写进去了：先把原文放回去，再按新长度重写，免得拿上一版结果当原稿。
+    const undo = state.rewriteUndo;
+    if (undo && !redo.fromTitle && undo.composer === redo.composer) {
+      replaceComposer(undo.originalText, { composer: undo.composer, expectedText: undo.appliedText, silent: true });
+      clearRewriteUndo();
+      setTimeout(() => optimizeRewrite(false, redo.composer, options), 0);
+      return;
+    }
+    optimizeRewrite(!state.rewriteUndo, redo.composer, options);
+  }
+
   function revealHost() {
     if (!state.host) return;
+    renderLengthRedo();
     state.companionChat?.close();
     if (!state.shadow.querySelector('.zili-conversation-tabs')) {
       const tabs = document.createElement('div');
@@ -881,7 +927,11 @@
         .zili-manual-mode.is-selected { color: #fff; background: #557fa8; }
         .zili-manual-length { display: flex; align-items: center; gap: 6px; margin-top: 8px; color: #8a8276; font-size: 10px; }
         .zili-manual-length[hidden] { display: none; }
-        .zili-manual-length span { margin-right: auto; }
+        .zili-manual-length span, .zili-length-redo span { margin-right: auto; }
+        .zili-length-redo { display: flex; align-items: center; gap: 6px; margin: 0 14px 12px; color: #8a8276; font-size: 11px; }
+        .zili-length-redo[hidden] { display: none; }
+        .zili-length-redo button { min-width: 36px; padding: 4px 9px; border: 1px solid rgba(85,127,168,.18); border-radius: 999px; color: #667786; background: #fff; font-size: 11px; }
+        .zili-length-redo button.is-selected { border-color: var(--zili-accent, #557fa8); color: #fff; background: var(--zili-accent, #557fa8); font-weight: 700; }
         .zili-manual-length button { min-width: 32px; padding: 4px 8px; border: 1px solid rgba(85,127,168,.18); border-radius: 999px; color: #667786; background: #fff; font-size: 10px; }
         .zili-manual-length button.is-selected { border-color: #557fa8; color: #fff; background: #557fa8; font-weight: 700; }
         .zili-manual-note { margin: 8px 1px 0; color: #8a8276; font-size: 9px; line-height: 1.4; }
@@ -992,6 +1042,12 @@
           <button class="zili-apply" type="button">写进输入框</button>
           <button class="zili-copy" type="button">复制</button>
         </div>
+        <div class="zili-length-redo" hidden>
+          <span>篇幅</span>
+          <button data-redo-length="short" type="button">短</button>
+          <button data-redo-length="medium" type="button">中</button>
+          <button data-redo-length="long" type="button">长</button>
+        </div>
         <div class="zili-restore-row" hidden>
           <span>润色结果已写入</span>
           <button class="zili-restore-original" type="button">恢复原文</button>
@@ -1058,6 +1114,9 @@
       }
     });
     state.shadow.querySelector(".zili-copy").addEventListener("click", copyCandidate);
+    state.shadow.querySelectorAll("[data-redo-length]").forEach(button => {
+      button.addEventListener("click", () => redoWithLength(button.dataset.redoLength));
+    });
     state.shadow.querySelector(".zili-restore-original").addEventListener("click", restoreRewriteOriginal);
     state.shadow.querySelector(".zili-followup-send").addEventListener("click", sendFollowup);
     state.shadow.querySelector(".zili-followup-add-image").addEventListener("click", () => {
@@ -1096,7 +1155,8 @@
     state.shadow.querySelectorAll("[data-manual-length]").forEach(button => {
       button.addEventListener("click", () => {
         // 润色和补充各记各的长度：润色默认保持原长，补充默认写短。
-        if (state.manualMode === "rewrite") state.rewriteLength = button.dataset.manualLength;
+        if (isTitleField(state.manualRewrite?.composer)) state.titleLength = button.dataset.manualLength;
+        else if (state.manualMode === "rewrite") state.rewriteLength = button.dataset.manualLength;
         else state.manualLength = button.dataset.manualLength;
         renderManualControls();
         requestManualRewrite(state.manualMode);
@@ -1264,6 +1324,7 @@
   }
 
   function hideHost() {
+    state.lengthRedo = null;
     state.requestId += 1;
     state.learningCard?.stop();
     globalThis.speechSynthesis?.cancel();
@@ -1586,6 +1647,7 @@
   }
 
   function showComment(result) {
+    state.lengthRedo = null;
     clearRewriteUndo();
     state.currentRewrite = null;
     state.currentMethod = null;
@@ -1726,8 +1788,9 @@
     });
     const lengthControls = state.shadow?.querySelector(".zili-manual-length");
     if (lengthControls) lengthControls.hidden = false;
-    const rewriting = state.manualMode !== "expand";
-    const selected = rewriting ? state.rewriteLength : state.manualLength;
+    const forTitle = isTitleField(state.manualRewrite?.composer);
+    const rewriting = state.manualMode !== "expand" && !forTitle;
+    const selected = forTitle ? state.titleLength : rewriting ? state.rewriteLength : state.manualLength;
     state.shadow?.querySelectorAll("[data-manual-length]").forEach(button => {
       button.textContent = rewriting ? button.dataset.rewriteLabel : { short: "短", medium: "中", long: "长" }[button.dataset.manualLength];
       button.classList.toggle("is-selected", button.dataset.manualLength === selected);
@@ -2197,7 +2260,7 @@
       showStatus([
         options.automatic ? "已直接润色到输入框 · 你仍可继续修改" : "已写入一份，发出前再看一眼",
         costLabel
-      ].filter(Boolean).join(" · "), false, state.rewriteUndo ? 0 : 2600);
+      ].filter(Boolean).join(" · "), false, state.rewriteUndo || state.lengthRedo?.fromTitle ? 0 : 2600);
     }
     return true;
   }
@@ -2412,9 +2475,9 @@
     // 在标题框里写的标题或指令：按它写正文，填进下面的正文框；标题本身不动。
     const bodyTarget = !replySource && isTitleField(composer) ? bodyFieldBelow(composer) : null;
     const requestMode = replySource ? "comment" : bodyTarget || WRITE_REQUEST.test(compact) ? "expand" : manualMode;
-    const targetChars = requestMode === "expand" ? requestedChars(text) : 0;
-    // 按标题写正文，没手动选过长度就写中等篇幅，不按补充默认的一两句。
-    if (bodyTarget && !(manualTrigger && manualMode === "expand")) lengthTier = "medium";
+    const targetChars = requestMode === "expand" && !options.ignoreCharCount ? requestedChars(text) : 0;
+    // 按标题写正文默认写短文，用户在卡片上选过篇幅就按选的。
+    if (bodyTarget) lengthTier = state.titleLength;
 
     const previousOutput = force ? String(state.currentRewrite?.output || "") : "";
     const keepPreview = Boolean(previousOutput);
@@ -2478,7 +2541,10 @@
     if (bodyTarget && document.contains(bodyTarget)) {
       const bodyText = getText(bodyTarget);
       // 正文框是空的就直接填；已经写了东西就先给预览，点了才覆盖。
-      if (!bodyText) {
+      state.lengthRedo = { composer: liveComposer, mode: "expand", fromTitle: true, length: lengthTier };
+      if (!bodyText || bodyText === state.lastAppliedText) {
+        // 写正文会把光标带进正文框，别让它当成“用户点进来了”再弹一张润色卡把结果顶掉。
+        state.draftWrittenAt = Date.now();
         replaceComposer(response.output, { composer: bodyTarget, expectedText: bodyText, undoSource: bodyText, usageResult: response });
       } else {
         showRewriteCandidate({ ...response, mode: "expand", lengthTier, titleComposer: liveComposer }, bodyTarget, bodyText);
@@ -2488,6 +2554,12 @@
       return;
     }
     state.activeComposer = liveComposer;
+    state.lengthRedo = {
+      composer: liveComposer,
+      mode: requestMode,
+      fromTitle: false,
+      length: requestMode === "rewrite" ? (manualTrigger && options.rewriteLength) || "medium" : lengthTier
+    };
     if (options.directApply === true) {
       replaceComposer(response.output, {
         composer: liveComposer,
@@ -2600,6 +2672,8 @@
         }, INPUT_IDLE_MS);
       } else {
         state.inputTimer = setTimeout(() => {
+          // 正在写、或者刚写完结果卡还开着：光标回到输入框不要用润色卡把它顶掉。
+          if (state.shadow?.querySelector(".zili-status.is-busy") || state.lengthRedo || Date.now() - (state.draftWrittenAt || 0) < 2000) return;
           showManualRewriteAction(composer);
         }, MANUAL_ACTION_DELAY_MS);
       }
@@ -2715,6 +2789,8 @@
     state.activeComposer = composer;
     const text = getText(composer);
     if (state.suppressInput) return;
+    // 刚由字里写进去的那一版（编辑器写完会补发 input），不当成用户在打字。
+    if (Date.now() - (state.draftWrittenAt || 0) < 2000 && text === state.lastAppliedText) return;
     if (
       state.rewriteUndo?.composer === composer
       && !ZiliInteraction.canRestoreRewrite(text, state.rewriteUndo.appliedText)
