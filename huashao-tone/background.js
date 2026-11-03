@@ -612,6 +612,8 @@ async function testConnection() {
 }
 
 const TOPIC_SEARCH_BUDGET_MS = 35_000;
+// 写正文最多让用户等这么久：超过后不再补字数、调口吻，直接交出手里已有的那版。
+const EXPAND_DEADLINE_MS = 100_000;
 const TOPIC_SEARCH_PATTERN = /观后感|读后感|影评|书评|剧评|乐评|测评|评测|电影|影片|纪录片|电视剧|网剧|综艺|动画|番剧|小说|新书|专辑|游戏|《[^》]+》|最新|发布会|新闻|事件/;
 
 function resolveWebSearchEngine(engine) {
@@ -741,6 +743,18 @@ async function optimize(message) {
     const generateCandidate = input => searchActive
       ? globalThis.ZiliModelClient.generateWebSearch(input, providerOptions)
       : globalThis.ZiliModelClient.generate(input, offlineOptions);
+    const startedAt = Date.now();
+    // 补字数、调口吻是附加步骤：剩余时间不够就跳过，超时也只丢掉这一步，不让整个请求卡住。
+    const extraPass = input => {
+      const remaining = EXPAND_DEADLINE_MS - (Date.now() - startedAt);
+      if (mode !== "expand") return generateCandidate(input);
+      if (remaining < 10_000) return Promise.resolve(null);
+      let timer = 0;
+      return Promise.race([
+        generateCandidate(input),
+        new Promise(resolve => { timer = setTimeout(() => resolve(null), remaining); })
+      ]).catch(() => null).finally(() => clearTimeout(timer));
+    };
     let result;
     if (topicSearchEngine) {
       let budgetTimer = 0;
@@ -781,7 +795,7 @@ async function optimize(message) {
       const minChars = globalThis.ZiliModelClient.expandMinChars(generationInput);
       const writtenChars = String(result.output || "").replace(/\s/g, "").length;
       if (writtenChars < minChars * 0.85) {
-        const longer = await generateCandidate({
+        const longer = await extraPass({
           ...generationInput,
           toneFeedback: `你只写了约 ${writtenChars} 字，要求至少 ${minChars} 字。在下面这版的基础上补足段落写够字数，保留其中的事实和方向，不新增没把握的细节：\n${String(result.output || "").slice(0, 3000)}`
         }).catch(() => null);
@@ -804,12 +818,12 @@ async function optimize(message) {
       replyContext: generationInput.replyContext
     });
 
-    if (!review.ok && ["comment", "rewrite", "expand"].includes(mode)) {
+    const repairedResult = !review.ok && ["comment", "rewrite", "expand"].includes(mode)
+      ? await extraPass({ ...generationInput, toneFeedback: review.feedback })
+      : null;
+    if (repairedResult) {
       repaired = true;
-      result = await generateCandidate({
-        ...generationInput,
-        toneFeedback: review.feedback
-      });
+      result = repairedResult;
       totalLatencyMs += Number(result.latencyMs) || 0;
       totalUsage = mergeUsage(totalUsage, result.usage);
       review = globalThis.ZiliToneGuard.review({

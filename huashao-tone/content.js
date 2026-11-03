@@ -2481,7 +2481,16 @@
     state.currentRewrite = null;
     const id = ++state.requestId;
     state.pendingRequest = "rewrite";
-    showStatus(replySource ? "正在帮你写回复…" : requestMode === "expand" ? "正在顺着你的开头或主题补充…" : "正在按你的写作风格润色…", true, 0);
+    const busyText = replySource ? "正在帮你写回复…" : requestMode === "expand" ? "正在顺着你的开头或主题补充…" : "正在按你的写作风格润色…";
+    showStatus(busyText, true, 0);
+    // 写长文、联网查资料要等一会儿：显示已等秒数，让用户知道它还在干活；后台最多 100 秒，这边 130 秒兜底。
+    const waitStartedAt = Date.now();
+    const waitTicker = setInterval(() => {
+      const seconds = Math.round((Date.now() - waitStartedAt) / 1000);
+      const status = state.shadow?.querySelector(".zili-status");
+      if (id !== state.requestId || state.pendingRequest !== "rewrite" || !status?.classList.contains("is-busy")) return clearInterval(waitTicker);
+      if (seconds >= 10) status.textContent = `${busyText}（已等 ${seconds} 秒${seconds >= 30 ? "，模型这会儿比较慢" : ""}）`;
+    }, 1000);
     const response = await send({
       type: "OPTIMIZE",
       mode: requestMode,
@@ -2498,7 +2507,7 @@
       forceFresh: force,
       variationNonce: force ? `${Date.now()}-${Math.random()}` : "",
       previousOutput
-    });
+    }, { timeoutMs: 130_000 }).finally(() => clearInterval(waitTicker));
     const liveComposer = findLiveComposer(composer, text);
     if (
       id !== state.requestId
