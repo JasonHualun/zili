@@ -302,7 +302,19 @@
   const TIMEOUT_MS = 15_000;
   const VISION_TIMEOUT_MS = 30_000;
   const VISION_MODEL = "qwen3.7-flash";
-  let activeController = null;
+  // 同一个来源（同一标签页）发新请求时才取消旧的；不同标签页、不同功能互不打断。
+  const activeControllers = new Map();
+  function claimController(options) {
+    const key = options?.abortKey ? String(options.abortKey) : "";
+    if (key) activeControllers.get(key)?.abort();
+    const controller = new AbortController();
+    if (key) activeControllers.set(key, controller);
+    return { controller, release: () => { if (key && activeControllers.get(key) === controller) activeControllers.delete(key); } };
+  }
+  // 长文要写更久：在基础等待时间上按输出上限加时。
+  function timeoutFor(baseMs, maxTokens) {
+    return baseMs + Math.max(0, Number(maxTokens) || 0) * 12;
+  }
 
   function normalizeProvider(value) {
     const provider = String(value || "").trim().toLowerCase();
@@ -894,6 +906,24 @@
     ];
   }
 
+  function escapeControlCharsInStrings(text) {
+    let out = "";
+    let inString = false;
+    let escaped = false;
+    for (const ch of text) {
+      if (inString) {
+        if (escaped) escaped = false;
+        else if (ch === "\\") escaped = true;
+        else if (ch === '"') inString = false;
+        else if (ch === "\n") { out += "\\n"; continue; }
+        else if (ch === "\r") { out += "\\r"; continue; }
+        else if (ch === "\t") { out += "\\t"; continue; }
+      } else if (ch === '"') inString = true;
+      out += ch;
+    }
+    return out;
+  }
+
   function parseJsonCandidate(value) {
     if (value && typeof value === "object") return value;
     const text = cleanText(value, 20_000);
@@ -906,10 +936,16 @@
       const first = candidate.indexOf("{");
       const last = candidate.lastIndexOf("}");
       if (first < 0 || last <= first) return null;
+      const body = candidate.slice(first, last + 1);
       try {
-        return JSON.parse(candidate.slice(first, last + 1));
+        return JSON.parse(body);
       } catch {
-        return null;
+        // 长文里模型偶尔把换行原样写进字符串，JSON 就不合法：只把字符串里的换行、制表符转义后再试一次。
+        try {
+          return JSON.parse(escapeControlCharsInStrings(body));
+        } catch {
+          return null;
+        }
       }
     }
   }
@@ -1127,11 +1163,9 @@
       throw new Error("vision_model_required");
     }
 
-    if (activeController) activeController.abort();
-    const controller = new AbortController();
-    activeController = controller;
+    const { controller, release } = claimController(options);
     const startedAt = Date.now();
-    const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+    const timer = setTimeout(() => controller.abort(), timeoutFor(TIMEOUT_MS, generation.maxTokens));
 
     try {
       const headers = {
@@ -1193,7 +1227,7 @@
       throw new Error(`${provider}_unavailable`);
     } finally {
       clearTimeout(timer);
-      if (activeController === controller) activeController = null;
+      release();
     }
   }
 
@@ -1203,7 +1237,7 @@
       .filter(block => block?.type === "text")
       .map(block => cleanText(block.text, 20_000))
       .filter(Boolean)
-      .join("\n")
+      .join("")
       .trim();
   }
 
@@ -1248,13 +1282,11 @@
       return generate({ ...input, webSearch: true }, { ...options, provider, model: selectedModel });
     }
 
-    if (activeController) activeController.abort();
-    const controller = new AbortController();
-    activeController = controller;
-    const startedAt = Date.now();
-    const timer = setTimeout(() => controller.abort(), TIMEOUT_MS * 2);
-    const tools = [{ type: "web_search_20250305", name: "web_search", max_uses: 5 }];
     const maxTokens = mode === "verify" ? 1000 : mode === "expand" ? expandMaxTokens(input) : 700;
+    const { controller, release } = claimController(options);
+    const startedAt = Date.now();
+    const timer = setTimeout(() => controller.abort(), timeoutFor(TIMEOUT_MS * 2, maxTokens));
+    const tools = [{ type: "web_search_20250305", name: "web_search", max_uses: 5 }];
     const system = buildPrompt({ ...input, webSearch: true });
     let messages = [{ role: "user", content: buildUserMessage(input) }];
     let usage = null;
@@ -1310,7 +1342,7 @@
       throw new Error(`${provider}_unavailable`);
     } finally {
       clearTimeout(timer);
-      if (activeController === controller) activeController = null;
+      release();
     }
   }
 
@@ -1334,9 +1366,7 @@
     if (!apiKey) throw new Error("vision_key_missing");
     if (typeof fetchImpl !== "function") throw new Error(`${provider}_unavailable`);
 
-    if (activeController) activeController.abort();
-    const controller = new AbortController();
-    activeController = controller;
+    const { controller, release } = claimController(options);
     const startedAt = Date.now();
     const timer = setTimeout(() => controller.abort(), VISION_TIMEOUT_MS);
 
@@ -1388,7 +1418,7 @@
       throw new Error(`${provider}_unavailable`);
     } finally {
       clearTimeout(timer);
-      if (activeController === controller) activeController = null;
+      release();
     }
   }
 

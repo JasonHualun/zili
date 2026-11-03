@@ -714,6 +714,7 @@ async function optimize(message) {
       ? generationInput.text
       : generationInput.selectedText;
     const providerOptions = {
+      abortKey: message.abortKey,
       apiKey,
       provider,
       model,
@@ -1168,7 +1169,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 
   if (message?.type === "OPTIMIZE") {
-    optimize({ ...message, platformHost: senderHost(sender) }).then(sendResponse);
+    optimize({ ...message, platformHost: senderHost(sender), abortKey: sender?.tab?.id != null ? `tab:${sender.tab.id}` : "" }).then(sendResponse);
     return true;
   }
 

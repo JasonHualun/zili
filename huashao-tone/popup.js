@@ -1194,6 +1194,16 @@ async function checkConnection(verifyApi = false) {
     return response;
   }
 
+  // 只显示上一次请求失败的原因，方便判断是密钥、余额还是网络问题。
+  const ENGINE_ERROR_HINTS = {
+    model_auth_error: "密钥无效",
+    model_balance_insufficient: "余额不足",
+    model_rate_limited: "请求太频繁",
+    model_invalid_response: "返回格式不对",
+    model_not_found: "模型名不对",
+    model_unavailable: "网络或服务暂时不通",
+    fresh_output_repeated: "换一版没换出来"
+  };
   const directReady = Boolean(response?.ok && response.status === "ready");
   const lastStatus = response?.engine?.lastStatus;
   const label = response?.error === "message_port_closed"
@@ -1205,7 +1215,7 @@ async function checkConnection(verifyApi = false) {
     : lastStatus === "timeout"
       ? `${engine.providerLabel} 超时`
       : lastStatus === "error"
-      ? `${engine.providerLabel} 异常`
+      ? `${engine.providerLabel} 异常${ENGINE_ERROR_HINTS[response?.engine?.lastError] ? `：${ENGINE_ERROR_HINTS[response.engine.lastError]}` : ""}`
           : "密钥已保存，待检查";
   const ready = directReady && lastStatus === "success";
   form.connectionState.textContent = label;

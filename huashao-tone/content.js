@@ -2673,7 +2673,7 @@
       } else {
         state.inputTimer = setTimeout(() => {
           // 正在写、或者刚写完结果卡还开着：光标回到输入框不要用润色卡把它顶掉。
-          if (state.shadow?.querySelector(".zili-status.is-busy") || state.lengthRedo || Date.now() - (state.draftWrittenAt || 0) < 2000) return;
+          if (state.shadow?.querySelector(".zili-status.is-busy") || (state.lengthRedo && state.host?.classList.contains("is-visible")) || Date.now() - (state.draftWrittenAt || 0) < 2000) return;
           showManualRewriteAction(composer);
         }, MANUAL_ACTION_DELAY_MS);
       }
