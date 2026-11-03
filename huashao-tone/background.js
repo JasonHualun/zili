@@ -1025,10 +1025,28 @@ async function prepareVoiceTutor(message, sender) {
   };
 }
 
+// Some Chromium browsers (e.g. 豆包浏览器) silently ignore popup windows,
+// so fall back to a normal tab when the popup cannot be confirmed.
+async function openVoiceTutor() {
+  const url = chrome.runtime.getURL("voice-tutor.html");
+  const popupWorks = !/Doubao/i.test(navigator.userAgent) && typeof chrome.windows?.create === "function";
+  if (popupWorks) {
+    try {
+      const win = await Promise.race([
+        chrome.windows.create({ url, type: "popup", width: 400, height: 640, focused: true }),
+        new Promise((_, reject) => setTimeout(() => reject(new Error("popup_timeout")), 2500))
+      ]);
+      if (win?.id != null && await chrome.windows.get(win.id).catch(() => null)) return { ok: true };
+    } catch {}
+  }
+  await chrome.tabs.create({ url, active: true });
+  return { ok: true, tab: true };
+}
+
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (/^ZILI_VOICE_TUTOR_(OPEN|PREPARE)$/.test(message?.type || "")) {
     const job = message.type === "ZILI_VOICE_TUTOR_OPEN"
-      ? chrome.windows.create({ url: chrome.runtime.getURL("voice-tutor.html"), type: "popup", width: 400, height: 640 }).then(() => ({ ok: true }))
+      ? openVoiceTutor()
       : prepareVoiceTutor(message, sender);
     job.then(sendResponse).catch(error => sendResponse({ ok: false, error: error.message || "语音陪练启动失败" }));
     return true;
