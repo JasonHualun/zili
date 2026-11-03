@@ -516,16 +516,6 @@
     }
   }
 
-  async function resetCompanionPosition() {
-    state.companionPosition = null;
-    positionCompanion();
-    if (state.assistantAttached) positionHost();
-    try {
-      await chrome.storage.local.remove(COMPANION_POSITION_KEY);
-    } catch (_) {}
-    companionSpeak("已经回到右下角了");
-  }
-
   function enableCompanionDragging() {
     const sticker = state.companionShadow?.querySelector(".zili-companion-sticker");
     const shell = state.companionShadow?.querySelector(".zili-companion");
@@ -543,7 +533,7 @@
         state.companionSuppressClick = false;
       }, 320);
       persistCompanionPosition();
-      companionSpeak("位置记住了，双击我可以回右下角");
+      companionSpeak("位置记住了");
     };
 
     sticker.addEventListener("pointerdown", event => {
@@ -574,11 +564,6 @@
     });
     sticker.addEventListener("pointerup", finishDrag);
     sticker.addEventListener("pointercancel", finishDrag);
-    sticker.addEventListener("dblclick", event => {
-      event.preventDefault();
-      state.companionSuppressClick = false;
-      void resetCompanionPosition();
-    });
   }
 
   function ensureCompanion() {
@@ -633,7 +618,7 @@
       </style>
       <aside class="zili-companion" aria-label="字里漂浮助手">
         <div class="zili-companion-speech" role="status" aria-live="polite">划一下，我帮你看</div>
-        <button class="zili-companion-sticker" type="button" aria-label="字里暹罗猫助手" title="拖动调整位置，双击回到右下角"><img src="${companionAssetUrl(state.settings.theme)}" alt="" draggable="false"></button>
+        <button class="zili-companion-sticker" type="button" aria-label="字里暹罗猫助手" title="拖动调整位置"><img src="${companionAssetUrl(state.settings.theme)}" alt="" draggable="false"></button>
         <button class="zili-companion-close" type="button" aria-label="关闭选项" aria-haspopup="menu" aria-expanded="false">×</button>
         <div class="zili-companion-menu" role="menu" hidden>
           <button type="button" role="menuitem" data-companion-action="hide">只关闭漂浮框</button>
@@ -714,7 +699,7 @@
     const header = state.shadow?.querySelector(".zili-head");
     if (header) {
       header.title = attached
-        ? "拖动我和猫咪，双击回到右下角"
+        ? "拖动我和猫咪"
         : "拖动调整位置，双击恢复自动跟随";
     }
     state.companionHost?.classList.toggle("is-card-attached", attached);
@@ -1266,10 +1251,8 @@
     header.addEventListener("pointercancel", finishDrag);
     header.addEventListener("dblclick", event => {
       if (event.target.closest?.("button, a, input, select, summary")) return;
-      if (state.assistantAttached) {
-        void resetCompanionPosition();
-        return;
-      }
+      // 跟着小猫时双击不做事：连点切换功能时不会把小猫送回右下角。
+      if (state.assistantAttached) return;
       state.panelPosition = null;
       positionHost();
     });
