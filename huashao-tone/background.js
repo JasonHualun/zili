@@ -46,6 +46,8 @@ function responseCacheKey(mode, message, settings, provider, model) {
       : null,
     lengthTier: ["short", "medium", "long"].includes(message.lengthTier) ? message.lengthTier : "short",
     rewriteLength: ["short", "medium", "long"].includes(message.rewriteLength) ? message.rewriteLength : "",
+    fromTitle: message.fromTitle === true,
+    targetChars: Math.min(3000, Math.max(0, Number(message.targetChars) || 0)),
     settings
   });
 }
@@ -685,6 +687,8 @@ async function optimize(message) {
         ? message.lengthTier
         : "short",
       rewriteLength: ["short", "medium", "long"].includes(message.rewriteLength) ? message.rewriteLength : "",
+      fromTitle: message.fromTitle === true,
+      targetChars: Math.min(3000, Math.max(0, Number(message.targetChars) || 0)),
       sentenceForm: message.sentenceForm === "question" ? "question" : "statement",
       replyContext: message.replyContext === "emotional-vent" ? "emotional-vent" : "ordinary",
       webSearch: needsWebSearch,

@@ -2114,7 +2114,7 @@
     if (state.currentVision?.imageDataUrl) {
       rerunVisionAs(state.currentComment?.mode || state.currentVision.requestedMode || "auto");
     } else if (state.currentRewrite?.sourceText) {
-      optimizeRewrite(true, state.currentRewrite.composer, { mode: state.currentRewrite.mode || "rewrite", lengthTier: state.currentRewrite.lengthTier || state.manualLength, rewriteLength: state.currentRewrite.rewriteLength || "", manualTrigger: true });
+      optimizeRewrite(true, state.currentRewrite.titleComposer || state.currentRewrite.composer, { mode: state.currentRewrite.mode || "rewrite", lengthTier: state.currentRewrite.lengthTier || state.manualLength, rewriteLength: state.currentRewrite.rewriteLength || "", manualTrigger: true });
     } else if (state.currentComment?.output) {
       optimizeComment(true);
     }
@@ -2339,6 +2339,37 @@
   // X：回复弹窗只看弹窗里的推文；页面内的回复框只在推文详情页，取它之前最近的一条推文。
   // 新发帖的弹窗里没有推文，所以不会被当成回复。其他网站用页面主帖（小红书、抖音、YouTube 等详情页）。
   const REPLY_REQUEST = /^(?:请|麻烦)?你?(?:帮我|给我|替我)?(?:写|来|生成|想|回)?一?(?:篇|条|个|句|段)?(?:回复|评论|回帖|留言)(?:一下|下)?(?:吧|呗)?$/;
+  // 标题框：单行、名字或提示里带“标题”。下面紧挨着的大编辑框就是正文框。
+  const TITLE_HINT = /标题|title|headline|subject/i;
+  function isTitleField(element) {
+    if (!element) return false;
+    const rect = element.getBoundingClientRect();
+    if (rect.height > 90) return false;
+    const hints = [
+      element.id, element.className, element.getAttribute("name"), element.getAttribute("placeholder"),
+      element.getAttribute("aria-label"), element.getAttribute("data-placeholder"), element.parentElement?.className
+    ].filter(value => typeof value === "string").join(" ");
+    return TITLE_HINT.test(hints);
+  }
+
+  function bodyFieldBelow(title) {
+    const top = title.getBoundingClientRect();
+    return Array.from(document.querySelectorAll(COMPOSER_SELECTOR))
+      .map(resolveComposer)
+      .filter(field => field && field !== title && !field.contains(title) && !title.contains(field) && !isTitleField(field))
+      .map(field => ({ field, rect: field.getBoundingClientRect() }))
+      .filter(({ rect }) => rect.width > 0 && rect.top >= top.bottom - 4 && rect.top - top.bottom < 400
+        && rect.left < top.right && rect.right > top.left)
+      .sort((a, b) => a.rect.top - b.rect.top)[0]?.field || null;
+  }
+
+  // “写一篇 500 字的……”里的字数。
+  function requestedChars(text) {
+    const match = String(text).match(/(\d{2,4})\s*(?:个)?(?:字|汉字)/);
+    const value = match ? Number(match[1]) : 0;
+    return value >= 20 && value <= 3000 ? value : 0;
+  }
+
   const WRITE_REQUEST = /(?:帮我|给我|替我|麻烦你?|请你?)(?:写|编|回|想|来)|写一?(?:篇|段|条|个|句)/;
   function replyTargetFor(composer) {
     if (!composer) return "";
@@ -2366,7 +2397,7 @@
     const text = getText(composer);
     const manualTrigger = options.manualTrigger === true;
     const manualMode = options.mode === "expand" ? "expand" : "rewrite";
-    const lengthTier = ["short", "medium", "long"].includes(options.lengthTier)
+    let lengthTier = ["short", "medium", "long"].includes(options.lengthTier)
       ? options.lengthTier
       : "short";
     if (!composer || (!manualTrigger && !readyToWrite(composer, text))) return;
@@ -2378,7 +2409,12 @@
       showStatus("没找到你要回复的那条内容，选中原文再试");
       return;
     }
-    const requestMode = replySource ? "comment" : WRITE_REQUEST.test(compact) ? "expand" : manualMode;
+    // 在标题框里写的标题或指令：按它写正文，填进下面的正文框；标题本身不动。
+    const bodyTarget = !replySource && isTitleField(composer) ? bodyFieldBelow(composer) : null;
+    const requestMode = replySource ? "comment" : bodyTarget || WRITE_REQUEST.test(compact) ? "expand" : manualMode;
+    const targetChars = requestMode === "expand" ? requestedChars(text) : 0;
+    // 按标题写正文，没手动选过长度就写中等篇幅，不按补充默认的一两句。
+    if (bodyTarget && !(manualTrigger && manualMode === "expand")) lengthTier = "medium";
 
     const previousOutput = force ? String(state.currentRewrite?.output || "") : "";
     const keepPreview = Boolean(previousOutput);
@@ -2408,6 +2444,8 @@
       manualTrigger,
       lengthTier,
       rewriteLength: manualTrigger && requestMode === "rewrite" ? options.rewriteLength || "" : "",
+      fromTitle: Boolean(bodyTarget),
+      targetChars,
       settingsOverride: candidateSettings(),
       forceFresh: force,
       variationNonce: force ? `${Date.now()}-${Math.random()}` : "",
@@ -2435,6 +2473,18 @@
     }
     if (!response.output || response.output.trim() === text.trim()) {
       showStatus("这句已经很自然，不用硬改");
+      return;
+    }
+    if (bodyTarget && document.contains(bodyTarget)) {
+      const bodyText = getText(bodyTarget);
+      // 正文框是空的就直接填；已经写了东西就先给预览，点了才覆盖。
+      if (!bodyText) {
+        replaceComposer(response.output, { composer: bodyTarget, expectedText: bodyText, undoSource: bodyText, usageResult: response });
+      } else {
+        showRewriteCandidate({ ...response, mode: "expand", lengthTier, titleComposer: liveComposer }, bodyTarget, bodyText);
+        state.shadow.querySelector(".zili-apply").textContent = "写进正文";
+        state.shadow.querySelector(".zili-status").textContent = "按标题写好了正文，正文框里已有内容，确认后再覆盖";
+      }
       return;
     }
     state.activeComposer = liveComposer;

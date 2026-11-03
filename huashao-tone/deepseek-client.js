@@ -597,12 +597,16 @@
                 "只有几个含义不明的字、半句话、孤立名词或看不出想往哪里写时，必须 ready=false、inputType=unclear、output 留空，不能替用户猜方向。",
                 "识别清楚后，顺着原意补成可直接继续编辑的成稿。",
                 "不能编造用户没提供的亲身经历、数据、引用、发布时间或确定事实；主题涉及最新消息时只能写观点框架，不得假装已经联网核实。",
+                input.fromTitle ? "用户在标题框里写的是文章标题或写作指令，按它写正文，结果会填进正文框：只输出正文，不重复标题，不另起标题；这种输入一律 inputType=topic。" : "",
+                Number(input.targetChars) > 0
+                  ? `用户指定了约 ${Math.round(Number(input.targetChars))} 字，按这个字数写，上下浮动一成以内，忽略下面的长度档。`
+                  : "",
                 lengthTier === "short"
                   ? "短：写成 40-80 个汉字，通常 1-3 句。"
                   : lengthTier === "medium"
                     ? "中：写成 180-350 个汉字，像一条完整长帖。"
                     : "长：写成 600-1000个汉字，最多是一篇 Thread 的长度；分成 4-7 个自然段，段落之间有推进，不写成正式长文章。"
-              ].join("\n")
+              ].filter(Boolean).join("\n")
             : [
                 "用户正在网页的输入框里写草稿。只润色原本内容：保留原意、事实、立场和信息边界，不把草稿改成另一个观点，也不主动增加新事实。",
                 input.rewriteLength === "short"
@@ -1106,7 +1110,9 @@
         temperature: 0.58
       },
       expand: {
-        maxTokens: lengthTier === "long" ? 1800 : lengthTier === "medium" ? 760 : 360,
+        maxTokens: Number(input.targetChars) > 0
+          ? Math.min(4800, Math.max(360, Math.round(Number(input.targetChars) * 1.6)))
+          : lengthTier === "long" ? 1800 : lengthTier === "medium" ? 760 : 360,
         temperature: 0.62
       }
     }[mode];
