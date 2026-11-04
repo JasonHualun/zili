@@ -2529,10 +2529,32 @@
     return true;
   }
 
+  // 划中的是某一条评论（比如小红书后台里别人发的“666”）：从划中的地方往外找，离它最近的那个“回复”按钮就是这条评论的，
+  // 点它让网站把回复框对准这个人，再写进去。X 用自己的 data-testid。
+  const REPLY_BUTTON_SELECTOR = '[data-testid="reply"], [aria-label="回复"], [aria-label="Reply"], [class~="reply"], [class*="reply-btn"], [class*="reply-button"]';
+  function findReplyButton(info) {
+    const tweetReply = info?.article?.querySelector?.('button[data-testid="reply"]');
+    if (tweetReply) return tweetReply;
+    let node = info?.anchor;
+    for (let depth = 0; node && node !== document.body && depth < 8; depth++, node = node.parentElement) {
+      const found = new Set([...node.querySelectorAll(`${REPLY_BUTTON_SELECTOR}, span, a, button, div`)]
+        .filter(element => {
+          if (element.contains(info.anchor) || resolveComposer(element)) return false;
+          if (element.matches(REPLY_BUTTON_SELECTOR)) return true;
+          return element.children.length <= 2 && /^\s*(?:回复|Reply)\s*$/i.test(element.textContent || "");
+        })
+        .map(element => element.closest(REPLY_BUTTON_SELECTOR) || element.closest('button, [role="button"]') || element));
+      // 只有一个才算这条评论自己的；一下冒出好几个，说明已经找到整片评论区了，分不清是哪条，就不点。
+      if (found.size === 1) return [...found][0];
+      if (found.size > 1) return null;
+    }
+    return null;
+  }
+
   async function writeCommentToReply(text) {
-    const replyButton = state.currentComment?.vision
+    const replyButton = state.currentComment?.vision || !state.selectionInfo?.anchor?.isConnected && !state.selectionInfo?.article
       ? null
-      : state.selectionInfo?.article?.querySelector?.('button[data-testid="reply"]');
+      : findReplyButton(state.selectionInfo);
     if (!replyButton) {
       // 不是 X：直接找页面上的评论框写入（含 B 站这类藏在网页组件里的），写完核对真的写进去了；找不到就复制。
       let current = findCommentComposer();
@@ -2559,7 +2581,7 @@
     replyButton.click();
     showStatus("已打开回复框，正在写入…", true, 0);
     setTimeout(() => {
-      const active = resolveComposer(document.activeElement);
+      const active = resolveComposer(deepActiveElement());
       const composer = active || Array.from(document.querySelectorAll(COMPOSER_SELECTOR))
         .map(resolveComposer)
         .filter(Boolean)
@@ -2955,6 +2977,7 @@
         webSearch: false,
         rect: range.getBoundingClientRect(),
         article,
+        anchor,
         triggerRuleId: triggerRule.id
       };
       if (state.lastSelection === text && state.currentComment?.triggerRuleId === triggerRule.id) return;
@@ -2990,7 +3013,8 @@
       replyContext: ZiliSelection.classifyReplyContext(text),
       webSearch: mode === "answer" && ZiliSelection.shouldUseWebSearch(text),
       rect: range.getBoundingClientRect(),
-      article
+      article,
+      anchor
     };
     clearTimeout(state.selectionTimer);
     state.selectionTimer = setTimeout(() => optimizeComment(false), 650);
