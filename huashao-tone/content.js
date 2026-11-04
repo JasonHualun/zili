@@ -2518,6 +2518,17 @@
     return value >= 20 && value <= 5000 ? value : 0;
   }
 
+  // 用户在标题或指令里自己说了长短（“写一篇长文”“简短点”），就按他说的写，不用默认篇幅。
+  function requestedTier(text) {
+    const t = String(text).replace(/\s/g, "");
+    if (/不(?:要|用|必|需要)(?:太|那么)?长/.test(t)) return "medium";
+    if (/不(?:要|用|必|需要)(?:太|那么)?短/.test(t)) return "long";
+    if (/长文|长篇|长一[点些]|写长|长点|详细|深度|深入|展开[写说讲]|多写|完整[地的]?写/.test(t)) return "long";
+    if (/中篇|中等|适中|中长/.test(t)) return "medium";
+    if (/短文|短篇|简短|短一[点些]|写短|短点|一句话|几句话|简单[写说]/.test(t)) return "short";
+    return "";
+  }
+
   const WRITE_REQUEST = /(?:帮我|给我|替我|麻烦你?|请你?)(?:写|编|回|想|来)|写一?(?:篇|段|条|个|句)/;
   function replyTargetFor(composer) {
     if (!composer) return "";
@@ -2563,6 +2574,9 @@
     const targetChars = requestMode === "expand" && !options.ignoreCharCount ? requestedChars(text) : 0;
     // 按标题写正文默认写短文，用户在卡片上选过篇幅就按选的。
     if (bodyTarget) lengthTier = state.titleLength;
+    // 卡片上点短/中/长时 ignoreCharCount 为真，那是用户刚选的，优先；否则文字里说了长短就按文字。
+    const askedTier = requestMode === "expand" && !options.ignoreCharCount ? requestedTier(text) : "";
+    if (askedTier) lengthTier = askedTier;
 
     const previousOutput = force ? String(state.currentRewrite?.output || "") : "";
     const keepPreview = Boolean(previousOutput);
