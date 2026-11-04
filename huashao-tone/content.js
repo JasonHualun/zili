@@ -147,10 +147,57 @@
     return Boolean(resolveComposer(element));
   }
 
+  // B 站等网站把评论框放在影子 DOM（网页组件内部）里：document.contains 和普通 querySelectorAll 都看不到，
+  // 所以判断“还在页面上”用 isConnected，找焦点和输入框都要钻进开放的影子 DOM。
+  function deepActiveElement() {
+    let element = document.activeElement;
+    while (element?.shadowRoot?.activeElement) element = element.shadowRoot.activeElement;
+    return element;
+  }
+
+  function deepQueryAll(selector, root = document, found = []) {
+    root.querySelectorAll(selector).forEach(element => found.push(element));
+    root.querySelectorAll("*").forEach(element => {
+      if (element.shadowRoot) deepQueryAll(selector, element.shadowRoot, found);
+    });
+    return found;
+  }
+
+  // 找网页上的评论/回复框：只要多行输入框（textarea 或可编辑区），不要顶部搜索框这类单行输入；
+  // 提示语或所在区域带“评论/回复”的优先，其次取最大的那个。
+  const COMMENT_HINT = /评论|回复|留言|说点什么|友善|comment|reply|弹幕/i;
+  function findCommentComposer() {
+    const active = resolveComposer(deepActiveElement());
+    if (active && !(active instanceof HTMLInputElement) && ![state.shadow, state.companionShadow].includes(active.getRootNode()) && active.getBoundingClientRect().width > 0) return active;
+    const candidates = [...new Set(deepQueryAll('textarea, [contenteditable="true"], [contenteditable="plaintext-only"]')
+      .map(resolveComposer)
+      .filter(element => element
+        && !(element instanceof HTMLInputElement)
+        && ![state.shadow, state.companionShadow].includes(element.getRootNode())
+        && element.getBoundingClientRect().width > 40))];
+    const hinted = candidates.find(element => {
+      const host = element.getRootNode()?.host;
+      const signals = [
+        element.getAttribute("placeholder"),
+        element.getAttribute("aria-label"),
+        element.getAttribute("data-placeholder"),
+        element.closest("[class]")?.className,
+        host?.tagName,
+        host?.getAttribute?.("placeholder")
+      ].join(" ");
+      return COMMENT_HINT.test(signals);
+    });
+    if (hinted) return hinted;
+    return candidates.sort((a, b) => {
+      const ra = a.getBoundingClientRect(), rb = b.getBoundingClientRect();
+      return rb.width * rb.height - ra.width * ra.height;
+    })[0] || null;
+  }
+
   function findLiveComposer(preferred, expectedText = "") {
-    if (preferred && document.contains(preferred) && isComposer(preferred)) return resolveComposer(preferred);
-    const active = resolveComposer(document.activeElement);
-    if (active && document.contains(active)) return active;
+    if (preferred?.isConnected && isComposer(preferred)) return resolveComposer(preferred);
+    const active = resolveComposer(deepActiveElement());
+    if (active?.isConnected) return active;
     const candidates = Array.from(document.querySelectorAll(COMPOSER_SELECTOR))
       .map(resolveComposer)
       .filter(Boolean);
@@ -162,12 +209,12 @@
   function findVisibleComposer(preferred = state.activeComposer) {
     const candidates = [
       resolveComposer(preferred),
-      resolveComposer(document.activeElement),
+      resolveComposer(deepActiveElement()),
       ...Array.from(document.querySelectorAll(COMPOSER_SELECTOR)).map(resolveComposer)
     ].filter(Boolean);
     const uniqueCandidates = [...new Set(candidates)];
     return uniqueCandidates.find(candidate => {
-      if (!document.contains(candidate)) return false;
+      if (!candidate.isConnected) return false;
       return ZiliInteraction.isVisibleRect(
         candidate.getBoundingClientRect(),
         window.innerWidth,
@@ -717,7 +764,7 @@
     if (!row) return;
     const redo = state.lengthRedo;
     const mode = state.shadow.querySelector(".zili-card")?.dataset.mode;
-    const live = redo && document.contains(redo.composer)
+    const live = redo && redo.composer?.isConnected
       && ((mode === "comment" && state.currentRewrite)
         || (mode === "status" && (state.rewriteUndo || redo.fromTitle) && !state.shadow.querySelector(".zili-status")?.classList.contains("is-busy")));
     row.hidden = !live;
@@ -731,7 +778,7 @@
 
   function redoWithLength(length) {
     const redo = state.lengthRedo;
-    if (!redo || !document.contains(redo.composer)) return;
+    if (!redo || !redo.composer?.isConnected) return;
     if (redo.mode === "rewrite") state.rewriteLength = length;
     else if (redo.fromTitle) state.titleLength = length;
     else state.manualLength = length;
@@ -2214,7 +2261,7 @@
 
   function replaceComposer(text, options = {}) {
     const element = findLiveComposer(options.composer || state.activeComposer, options.expectedText || "");
-    if (!element || !document.contains(element)) return false;
+    if (!element?.isConnected) return false;
     state.activeComposer = element;
     state.suppressInput = true;
     const writeResult = ZiliWriteback.replace(element, text);
@@ -2334,13 +2381,20 @@
       ? null
       : state.selectionInfo?.article?.querySelector?.('button[data-testid="reply"]');
     if (!replyButton) {
-      const current = findLiveComposer(state.activeComposer);
-      if (current && current.getBoundingClientRect().width > 0) {
-        replaceComposer(text, { composer: current });
-        state.lastSelection = "";
-      } else {
-        await copyCandidate();
+      // 不是 X：直接找页面上的评论框写入（含 B 站这类藏在网页组件里的），写完核对真的写进去了；找不到就复制。
+      const current = findCommentComposer();
+      if (current) {
+        current.scrollIntoView?.({ block: "center", behavior: "smooth" });
+        current.focus?.({ preventScroll: true });
+        const written = replaceComposer(text, { composer: current });
+        const landed = written && getText(current).replace(/\s/g, "").includes(text.replace(/\s/g, "").slice(0, 12));
+        if (landed) {
+          state.lastSelection = "";
+          return;
+        }
       }
+      await copyCandidate();
+      showStatus("没能直接写进评论框，已复制，点开评论框粘贴就行");
       return;
     }
 
@@ -2546,7 +2600,7 @@
       showStatus("这句已经很自然，不用硬改");
       return;
     }
-    if (bodyTarget && document.contains(bodyTarget)) {
+    if (bodyTarget?.isConnected) {
       const bodyText = getText(bodyTarget);
       // 按标题写正文一律直接写进正文框；正文框原来有字，就留着“恢复原文”能一键退回。
       // 换篇幅重写时退回的是用户自己的原文，不是上一版生成结果。
