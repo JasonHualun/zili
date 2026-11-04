@@ -49,7 +49,7 @@
     if(collect)q('[data-messages]').before(collect.element);else q('[data-view="collect"]').hidden=true;
     const request = async message => {
       // 每个请求都有上限：模型卡住时给出提示，不让发送按钮一直锁着。
-      const r = await api.send(message, { timeoutMs: message.type === 'ZILI_ASSIST' ? 60_000 : 15_000 });
+      const r = await api.send(message, { timeoutMs: message.type === 'ZILI_ASSIST' ? 180_000 : 15_000 });
       if (/runtime_timeout/.test(r?.error || '')) throw Error('等太久没回应，模型这会儿可能比较慢，再发一次试试');
       if (r?.ok) return r;
       if (/vision_model_required/i.test(r?.error || '')) throw Error('当前模型不能看图，请选择带“可识图”标识的模型');
@@ -197,6 +197,21 @@
         return action.on?'字幕翻译已开启，先打开播放器自带的英文字幕':'字幕翻译已关闭';
       }
       if(action.type==='capture'){close();const r=api.startCapture?.();return r&&!r.ok?'这一页不能框选':'';}
+      // 改正在写的内容：直接替换输入框，旁边留一个“恢复原文”。
+      if(action.type==='edit'){
+        const r=api.editText?.(action.text);
+        if(!r?.ok)return r?.error||'这一页没找到你在写的输入框，先点一下输入框再说';
+        const box=q('[data-proposal]');
+        const p=document.createElement('p');p.textContent='已改进输入框';
+        const b=document.createElement('button');b.type='button';b.textContent='恢复原文';
+        b.onclick=()=>{const u=api.restoreText?.();if(u?.ok){p.remove();b.remove();status('已恢复原文');}else status(u?.error||'恢复失败');};
+        box.append(p,b);
+        return '已改进输入框，发出前再看一眼';
+      }
+      if(action.type==='restore_text'){const r=api.restoreText?.();return r?.ok?'已恢复原文':(r?.error||'没有可以恢复的原文');}
+      if(action.type==='polish'){const r=api.polish?.();return r?.ok?'正在按你的口吻润色输入框里的内容…':(r?.error||'这一页没找到输入框');}
+      if(action.type==='collect'){if(q('[data-view="collect"]').hidden)return '这一页用不了收纳';setView('collect');return '';}
+      if(action.type==='tutor'){const r=await api.send({type:'ZILI_VOICE_TUTOR_OPEN'});if(r?.ok){close();return '';}return r?.error||'英语陪练没打开，请重试';}
       if(!filter)return '';
       if(action.type==='clean_ads'){const r=filter.cleanAds();return r.hidden?`已隐藏 ${r.hidden} 处广告`:'这一页没找到能识别的广告';}
       if(action.type==='restore'){filter.restore();return '已恢复本页';}
@@ -205,7 +220,7 @@
       return r.ok?`看了 ${r.total} 条，隐藏 ${r.hidden} 条，往下滑也会接着筛`:r.error;
     }
     q('form').onsubmit=async event=>{event.preventDefault();const text=q('[data-compose] textarea').value.trim();if(!text&&!image)return status('先输入想说的话');if(busy)return status('上一条还在回复，稍等一下');busy=true;const id=++revision;q('button[type="submit"]').disabled=true;status('正在回复…');
-      try{const r=await request({type:'ZILI_ASSIST',action:'chat',text,history:history.slice(-10).map(m=>({role:m.role,content:m.draft?`${m.content}\n${m.draft}`:m.content})),imageDataUrl:image?.dataUrl||'',page:pageSnapshot()});if(id!==revision)return;history=[...history,{role:'user',content:text||'［发送了一张图片］'},{role:'assistant',content:r.text,...(r.draft?{draft:r.draft}:{})}].slice(-24);await chrome.storage.local.set({[KEY]:history});q('[data-compose] textarea').value='';clearImage();render();const changed=await applyProposal(r.proposal);const pageResult=await runPageAction(r.pageAction);if(r.pageAction)renderShortcuts((await request({type:'GET_SETTINGS'})).settings);status(pageResult||(changed?'已修改，可撤销':'已回复'));position();}catch(e){status(e.message);}finally{busy=false;q('button[type="submit"]').disabled=false;}};
+      try{const r=await request({type:'ZILI_ASSIST',action:'chat',text,history:history.slice(-10).map(m=>({role:m.role,content:m.draft?`${m.content}\n${m.draft}`:m.content})),imageDataUrl:image?.dataUrl||'',page:pageSnapshot(),composer:api.composerText?.()||''});if(id!==revision)return;history=[...history,{role:'user',content:text||'［发送了一张图片］'},{role:'assistant',content:r.text,...(r.draft?{draft:r.draft}:{})}].slice(-24);await chrome.storage.local.set({[KEY]:history});q('[data-compose] textarea').value='';clearImage();render();const changed=await applyProposal(r.proposal);const pageResult=await runPageAction(r.pageAction);if(r.pageAction)renderShortcuts((await request({type:'GET_SETTINGS'})).settings);status(pageResult||(changed?'已修改，可撤销':'已回复'));position();}catch(e){status(e.message);}finally{busy=false;q('button[type="submit"]').disabled=false;}};
     q('[data-compose] textarea').onkeydown=e=>{if(e.key==='Enter'&&!e.shiftKey&&!e.isComposing&&!global.ZiliKeyGuard?.isImeKey(e)){e.preventDefault();q('form').requestSubmit();}};
     q('[data-compose] textarea').onpaste=event=>{const item=[...Array.from(event.clipboardData?.items||[])].find(entry=>ACCEPTED_IMAGE_TYPES.has(entry.type));if(!item)return;selectImage(item.getAsFile()).catch(error=>status(error.message));};
     q('[data-add-image]').onclick=()=>q('[data-image-input]').click();

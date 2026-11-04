@@ -140,6 +140,9 @@
     } else {
       composer = target.closest('[contenteditable="true"], [contenteditable="plaintext-only"]');
     }
+    // 字里自己的面板（对话框、结果卡）里的输入框不算网页的输入框。
+    const root = composer?.getRootNode?.();
+    if (root && (root === state.shadow || root === state.companionShadow)) return null;
     return composer && !isSensitiveComposer(composer) ? composer : null;
   }
 
@@ -707,7 +710,11 @@
       hasResult: () => Boolean(state.currentComment || state.currentRewrite),
       showResult: () => revealHost(),
       startCapture: () => startScreenshotSelection("auto"),
-      writeDraft: writeDraftToPage
+      writeDraft: writeDraftToPage,
+      composerText: () => { const c = findVisibleComposer() || findLiveComposer(state.activeComposer); return c ? getText(c).slice(0, 8000) : ""; },
+      editText: editComposerFromChat,
+      restoreText: restoreComposerFromChat,
+      polish: polishFromChat
     });
     enableCompanionDragging();
   }
@@ -2343,6 +2350,38 @@
     composer.focus?.({ preventScroll: true });
     const before = getText(composer);
     return { ok: replaceComposer(text, { composer, expectedText: before, undoSource: before, silent: true }) };
+  }
+
+  // 对话里说“给这篇加表情/改短一点”：整段替换正在写的输入框，原文留着可以恢复。
+  function editComposerFromChat(text) {
+    const composer = findVisibleComposer() || findLiveComposer(state.activeComposer);
+    if (!composer) return { ok: false, error: "这一页没找到你在写的输入框，先点一下输入框再说" };
+    const before = getText(composer);
+    const priorUndo = state.rewriteUndo;
+    // 连着改几次，恢复的仍是用户最早自己写的那版。
+    const undoSource = priorUndo && priorUndo.composer === composer && priorUndo.appliedText === before.trim() ? priorUndo.originalText : before;
+    state.draftWrittenAt = Date.now();
+    const ok = replaceComposer(text, { composer, expectedText: before, undoSource, silent: true });
+    return ok ? { ok: true } : { ok: false, error: "没能写进输入框，你的内容没有被改动" };
+  }
+
+  function restoreComposerFromChat() {
+    const undo = state.rewriteUndo;
+    const composer = findLiveComposer(undo?.composer);
+    if (!undo || !composer) return { ok: false, error: "没有可以恢复的原文" };
+    if (!ZiliInteraction.canRestoreRewrite(getText(composer), undo.appliedText)) return { ok: false, error: "内容已经被你改过，为了不覆盖你的编辑，不能恢复原文" };
+    state.draftWrittenAt = Date.now();
+    const ok = replaceComposer(undo.originalText, { composer, expectedText: undo.appliedText, silent: true });
+    return ok ? { ok: true } : { ok: false, error: "恢复失败，你现在的内容没有被改动" };
+  }
+
+  // 对话里说“润色一下”：走和输入框旁“润色”按钮同一条流程。
+  function polishFromChat() {
+    const composer = findVisibleComposer() || findLiveComposer(state.activeComposer);
+    if (!composer || !getText(composer).trim()) return { ok: false, error: "先在输入框里写点内容，再让我润色" };
+    if (!ZiliFeatureGates.allowsManualRewrite(state.settings)) return { ok: false, error: "润色功能在设置里关着，先打开再试" };
+    void optimizeRewrite(true, composer, { manualTrigger: true, mode: "rewrite", lengthTier: state.manualLength, rewriteLength: state.rewriteLength });
+    return { ok: true };
   }
 
   function writeRewriteToComposer(candidate) {

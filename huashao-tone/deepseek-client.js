@@ -1442,10 +1442,12 @@
       ? options.capabilities?.vision === true
       : supportsCapability(config.id, model, "vision");
     if (hasImage && !canSeeImages) throw new Error("vision_model_required");
+    // 改整篇正文要输出全文，给更多输出上限和等待时间；平时聊天保持 1600。
+    const maxTokens = Math.max(1600, Math.min(6000, Number(input.maxTokens) || 1600));
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+    const timer = setTimeout(() => controller.abort(), timeoutFor(TIMEOUT_MS, maxTokens));
     try {
-      const userText = String(input.text || "").slice(0, 8000) || "请看看这张图片，和我聊聊。";
+      const userText = String(input.text || "").slice(0, 16000) || "请看看这张图片，和我聊聊。";
       const body = { model, stream: false, temperature: 0.4,
         messages: [{ role: "system", content: input.system },
           ...(input.history || []).slice(-10).filter(m => ["user", "assistant"].includes(m.role))
@@ -1453,7 +1455,7 @@
           { role: "user", content: hasImage
             ? [{ type: "text", text: userText }, { type: "image_url", image_url: { url: imageDataUrl }, max_pixels: 8_388_608 }]
             : userText }] };
-      body[config.tokenField] = 1600;
+      body[config.tokenField] = maxTokens;
       applyThinkingPreference(body, config, model);
       const headers = { "Content-Type": "application/json" };
       headers[config.auth === "api-key" ? "api-key" : "Authorization"] = config.auth === "api-key" ? options.apiKey : `Bearer ${options.apiKey}`;
