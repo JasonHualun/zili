@@ -67,7 +67,7 @@
     const source = clean(text);
     const explicitExpression = /(?:\d+(?:\.\d+)?|[A-Za-z])\s*(?:[+\-*/×÷^=]|[<>≤≥])\s*(?:\d+(?:\.\d+)?|[A-Za-z])/i.test(source);
     const mathContext = /(?:方程|函数|几何|概率|面积|体积|周长|数学题|计算题|算式|求导|积分|矩阵)/.test(source);
-    const asksForResult = /[?？]|(?:等于多少|是多少|算一下|计算一下|结果(?:是|为)?|答案(?:是|为)?)|^(?:请)?(?:求|解|算|计算)/.test(source);
+    const asksForResult = /[?？]|[=＝]\s*(?:[?？]|多少|几)?\s*$|(?:等于多少|等于几|是多少|算一下|计算一下|结果(?:是|为)?|答案(?:是|为)?)|^(?:请)?(?:求|解|算|计算)/.test(source);
     const hasMathSignal = explicitExpression || mathContext;
     return hasMathSignal && asksForResult;
   }
