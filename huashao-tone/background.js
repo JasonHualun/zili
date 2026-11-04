@@ -1110,7 +1110,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
   if (/^ZILI_(ASSIST|PROFILE_(LIST|SAVE|DELETE)|ENGLISH_(LIST|SAVE|DELETE|REVIEW|LEARNED)|TUTOR_LESSON_SAVE)$/.test(message?.type || "")) {
     globalThis.ZiliLearning.handle(message, { readSettings, readModelEngine,
-      verifyClaim: ({ claim, pageContext }) => optimize({ mode: "verify", selectedText: claim, pageContext, webSearch: true }) })
+      verifyClaim: ({ claim, pageContext }) => optimize({ mode: "verify", selectedText: claim, pageContext, webSearch: true }),
+      verifyImage: ({ imageDataUrl, platformHost, aiOnly }) => analyzeScreenshot({ imageDataUrl, platformHost, requestedMode: aiOnly ? "verify_extract" : "verify" }) })
       .then(result => { if (result.ok && /^ZILI_PROFILE_(SAVE|DELETE)$/.test(message.type)) responseCache.clear(); sendResponse(result); }).catch(error => sendResponse({ ok: false, error: error.name === "AbortError" ? "请求超时，请重试" : globalThis.ZiliModelClient.publicError(error) }));
     return true;
   }
