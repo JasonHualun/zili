@@ -662,9 +662,9 @@
       : "";
     const punctuationInstruction = needsIntentGate
       ? [settings.punctuation === "noPeriods" ? "不使用中文句号或英文句末句点，用换行或空格断句。保留小数、网址、代码及用户要求的省略号，不删除感叹号或问号。" : settings.punctuation === "normal" ? "正常使用标点，保持原文和用户档案的断句习惯，不强制去掉句号。" : settings.punctuation === "sparse" ? "少标点，可用空格自然断句，仍保留理解所必需的标点。" : "按花伦底座的习惯少用标点：能用空格自然断句就不用逗号，段末和结尾不加句号；问号、感叹号、省略号跟着真实情绪走，理解必需的标点保留。",
-          settings.emoji === "none" ? "不要添加emoji表情，即使轻松口吻也不添加。" : settings.emoji === "often" ? "可以适量使用用户习惯的emoji，不要求每句都加。" : settings.emoji === "occasional" ? "只在语境合适时偶尔用emoji。" : "emoji参考明确的用户样例，无证据不主动添加，不猜表情的讽刺含义。",
+          settings.emoji === "none" ? "不要添加emoji表情，即使轻松口吻也不添加。" : settings.emoji === "often" ? (mode === "expand" ? "用户设置了多用表情：写出来的正文每段都要带一个贴合那段情绪的表情，放在句尾或停顿处；不能整篇一个表情都没有。" : "用户设置了多用表情：这一条要带一到两个贴合情绪的表情，放在句尾或停顿处。") : settings.emoji === "occasional" ? "只在语境合适时偶尔用emoji。" : "emoji参考明确的用户样例，无证据不主动添加，不猜表情的讽刺含义。",
           settings.emojiFavorites ? `用户常用表情：${cleanText(settings.emojiFavorites, 120)}` : "",
-          platformEmojiInstruction(input)].filter(Boolean).join("\n")
+          platformEmojiInstruction(input).replace(/一条最多两个/, mode === "expand" ? "每段最多一两个" : "一条最多两个")].filter(Boolean).join("\n")
       : "";
     const authorStyleInstruction = needsIntentGate ? `${HUALUN_VOICE}\n下面的口吻预设和滑块只是在这个底座上往某个方向微调，不能替换底座。用户口吻档案和场景样例只补充底座里没有的个人习惯，与底座冲突时以底座为准；除底座里列出的说法外，不另加方言、称呼、口头禅或讽刺方式。明确的标点与emoji设置优先于样例和预设。` : "";
     const antiAiStructureInstruction = needsIntentGate
