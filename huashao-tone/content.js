@@ -1152,7 +1152,17 @@
       </section>`;
 
     state.shadow.querySelector(".zili-close").addEventListener("click", hideHost);
-    state.shadow.querySelector(".zili-apply").addEventListener("click", () => {
+    state.shadow.querySelector(".zili-apply").addEventListener("click", event => {
+      if (event.currentTarget.dataset.askMore === "1") {
+        const followup = state.shadow.querySelector(".zili-followup");
+        if (followup.hidden) return;
+        followup.open = true;
+        requestAnimationFrame(() => {
+          state.shadow.querySelector(".zili-followup-input")?.focus({ preventScroll: true });
+          followup.scrollIntoView?.({ block: "nearest" });
+        });
+        return;
+      }
       if (state.currentRewrite?.output) {
         writeRewriteToComposer(state.currentRewrite);
       } else if (state.currentMethod?.output) {
@@ -1743,10 +1753,13 @@
       ? `AI痕迹风险 ${Math.round(Number(result.aiTracePercent) || 0)}%`
       : `把握度 ${Math.round((result.confidence || 0) * 100)}%`;
     state.shadow.querySelector(".zili-confidence").hidden = result.mode === "english" || result.copyText;
-    // 讲解、解题、核验、翻译是给你看的，不是要发出去的话：不给“写进输入框”，想接着聊用下面的“继续问”。只有回复才写进输入框。
-    state.shadow.querySelector(".zili-apply").hidden = ['verify','english','explain','answer','translate'].includes(result.mode) || result.copyText;
+    // 讲解、解题、核验、翻译是给你看的，不是要发出去的话：大按钮换成“继续问”，点了就在下面展开聊天框顺着聊。只有回复才写进输入框。
+    const askMore = ['verify','explain','answer','translate'].includes(result.mode) && !result.copyText;
+    const applyButton = state.shadow.querySelector(".zili-apply");
+    applyButton.hidden = result.mode === 'english' || result.copyText;
+    applyButton.dataset.askMore = askMore ? "1" : "";
     state.shadow.querySelector(".zili-copy").hidden = false;
-    state.shadow.querySelector(".zili-apply").textContent = "写进输入框";
+    applyButton.textContent = askMore ? "继续问" : "写进输入框";
     renderSelectionRoute(result.vision ? "" : result.mode);
     renderVisionRoute(result.vision ? result : null);
     renderUsage(result);
@@ -1787,6 +1800,7 @@
     state.shadow.querySelector(".zili-intent").textContent = result.intent || "润色当前草稿";
     state.shadow.querySelector(".zili-confidence").textContent = `把握度 ${Math.round((result.confidence || 0) * 100)}%`;
     state.shadow.querySelector(".zili-apply").hidden = false;
+    state.shadow.querySelector(".zili-apply").dataset.askMore = "";
     state.shadow.querySelector(".zili-copy").hidden = false;
     state.shadow.querySelector(".zili-apply").textContent = "写进输入框";
     renderSelectionRoute("");
@@ -2038,6 +2052,7 @@
     state.shadow.querySelector(".zili-intent").textContent = "会写进聊天框的提示词";
     state.shadow.querySelector(".zili-confidence").hidden = true;
     state.shadow.querySelector(".zili-apply").hidden = false;
+    state.shadow.querySelector(".zili-apply").dataset.askMore = "";
     state.shadow.querySelector(".zili-copy").hidden = false;
     state.shadow.querySelector(".zili-apply").textContent = "写进聊天框";
     state.shadow.querySelector(".zili-vision-preview").hidden = true;
