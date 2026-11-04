@@ -746,9 +746,15 @@
     // 已经写进去了：先把原文放回去，再按新长度重写，免得拿上一版结果当原稿。
     const undo = state.rewriteUndo;
     if (undo && !redo.fromTitle && undo.composer === redo.composer) {
-      replaceComposer(undo.originalText, { composer: undo.composer, expectedText: undo.appliedText, silent: true });
+      // 用户写入后又手动改过，就以改过的内容为原稿重写，不拿旧原文把改动冲掉。
+      const untouched = ZiliInteraction.canRestoreRewrite(getText(undo.composer), undo.appliedText);
+      const restored = untouched && replaceComposer(undo.originalText, { composer: undo.composer, expectedText: undo.appliedText, silent: true });
       clearRewriteUndo();
-      setTimeout(() => optimizeRewrite(false, redo.composer, options), 0);
+      if (untouched && !restored) {
+        showStatus("换篇幅没成功，你现在的内容没有被改动");
+        return;
+      }
+      setTimeout(() => optimizeRewrite(false, redo.composer, { ...options, directApply: true }), 0);
       return;
     }
     optimizeRewrite(!state.rewriteUndo, redo.composer, options);
@@ -801,6 +807,7 @@
         .zili-card > :not(.zili-card-tail) { position: relative; z-index: 1; }
         .zili-card-tail { position: absolute; z-index: 0; display: none; width: 14px; height: 14px; border: 1px solid rgba(54,76,91,.14); background: var(--zili-card-bg); transform: rotate(45deg); }
         :host(.is-companion-card) .zili-card-tail { display: block; }
+        :host([data-tail="none"]) .zili-card-tail { display: none !important; }
         :host(.is-companion-card) .zili-cat { display: none; }
         :host(.is-companion-card) .zili-card { animation: zili-card-speak-in .18s cubic-bezier(.16,1,.3,1); }
         :host([data-tail="bottom-right"]) .zili-card-tail { right: 17px; bottom: -7px; border-top: 0; border-left: 0; }
@@ -2514,7 +2521,14 @@
       || !ZiliFeatureGates.isMasterEnabled(state.settings)
       || !liveComposer
       || getText(liveComposer) !== text
-    ) return;
+    ) {
+      // 结果作废（输入框没了或用户接着打字）：没有更新的请求接手，就把转圈收掉。
+      if (id === state.requestId) {
+        state.pendingRequest = null;
+        if (state.shadow?.querySelector(".zili-status")?.classList.contains("is-busy")) hideHost();
+      }
+      return;
+    }
     state.pendingRequest = null;
     if (!response?.ok) {
       showStatus(engineErrorMessage(response?.error));
@@ -2866,12 +2880,10 @@
     positionHost();
     positionCompanion();
   });
-  chrome.storage.onChanged.addListener((changes, areaName) => {
-    if (areaName === "sync" && changes.settings?.newValue) {
-      state.settings = ToneOptimizer.normalizeSettings({
-        ...changes.settings.newValue,
-        reference: state.settings.reference
-      });
+  // 设置分两处存：sync 只有通用项，口吻档案、标点、表情在 local。任何一处变了都从后台取一份完整设置，
+  // 免得只拿半份把标点、表情悄悄还原成默认。
+  function applyLiveSettings(settings) {
+      state.settings = ToneOptimizer.normalizeSettings(settings);
       state.settingsLoaded = true;
       state.architectRouteId += 1;
       state.architectRoutedText = "";
@@ -2891,6 +2903,12 @@
               hideHost();
             }
       }
+  }
+  chrome.storage.onChanged.addListener((changes, areaName) => {
+    if ((areaName === "sync" && changes.settings?.newValue) || (areaName === "local" && changes.localToneProfile)) {
+      void send({ type: "GET_SETTINGS" }, { timeoutMs: 10_000 }).then(response => {
+        if (response?.ok && response.settings) applyLiveSettings(response.settings);
+      });
     }
     if (areaName === "local" && changes[ZiliTriggerRules.STORAGE_KEY]?.newValue) {
       state.triggerReplies = ZiliTriggerRules.normalizeConfig(

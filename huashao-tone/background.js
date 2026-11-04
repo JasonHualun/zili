@@ -326,6 +326,14 @@ function settingsForSync(settings) {
   return synced;
 }
 
+// 只改几项时走这里：读最新设置、合并、写回排成一队，popup 和小猫面板同时改也不会用旧快照互相覆盖。
+let settingsWriteQueue = Promise.resolve();
+function patchSettings(patch) {
+  const run = settingsWriteQueue.then(async () => saveSettings({ ...(await readSettings()), ...(patch || {}) }));
+  settingsWriteQueue = run.catch(() => {});
+  return run;
+}
+
 async function saveSettings(value) {
   const next = normalizeSettings(value || {});
   await Promise.all([
@@ -1115,7 +1123,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 
   if (message?.type === "SAVE_SETTINGS") {
-    saveSettings(message.settings)
+    (message.patch ? patchSettings(message.patch) : saveSettings(message.settings))
       .then(sendResponse)
       .catch(error => sendResponse({ ok: false, error: error.message }));
     return true;

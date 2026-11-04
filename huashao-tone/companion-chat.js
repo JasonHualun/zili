@@ -175,14 +175,14 @@
       const labels={reference:'口吻档案',human:'聊天感',opinion:'观点强度',question:'疑问倾向',length:'内容长度',style:'口吻',punctuation:'标点',emoji:'表情',emojiFavorites:'常用表情',theme:'皮肤',autoRewrite:'自动润色',selectionComments:'划词回复与讲解',architectMode:'架构师模式',triggerRepliesEnabled:'触发回复'};
       const {settings}=await request({type:'GET_SETTINGS'});
       const before=Object.fromEntries(Object.keys(patch).map(k=>[k,settings[k]]));
-      const r=await request({type:'SAVE_SETTINGS',settings:{...settings,...patch}});
+      const r=await request({type:'SAVE_SETTINGS',patch});
       const applied=Object.fromEntries(Object.keys(patch).map(k=>[k,r.settings[k]]));
       const p=document.createElement('p');p.textContent='已修改：'+Object.keys(patch).map(k=>labels[k]).join('、');box.append(p);
       const b=document.createElement('button');b.type='button';b.textContent='撤销';box.append(b);
       b.onclick=async()=>{b.disabled=true;try{
         const {settings:now}=await request({type:'GET_SETTINGS'});
         if(Object.keys(patch).some(k=>JSON.stringify(now[k])!==JSON.stringify(applied[k])))throw Error('设置已再次变化，为避免覆盖，不能撤销');
-        await request({type:'SAVE_SETTINGS',settings:{...now,...before}});box.replaceChildren();status('已撤销');
+        await request({type:'SAVE_SETTINGS',patch:before});box.replaceChildren();status('已撤销');
       }catch(e){status(e.message);b.disabled=false;}};
       return true;
     }

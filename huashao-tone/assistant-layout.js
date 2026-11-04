@@ -51,6 +51,19 @@
         tail: "top-left",
         left: centerX - TAIL_INSET,
         top: Number(anchor.bottom) - ANCHOR_OVERLAP
+      },
+      // 上下都放不下（窗口很矮）时，放到小猫左右两侧，不盖住小猫。
+      {
+        placement: "side-left",
+        tail: "none",
+        left: Number(anchor.left) - width - VIEWPORT_GAP,
+        top: Number(anchor.bottom) - height
+      },
+      {
+        placement: "side-right",
+        tail: "none",
+        left: Number(anchor.right) + VIEWPORT_GAP,
+        top: Number(anchor.bottom) - height
       }
     ];
 

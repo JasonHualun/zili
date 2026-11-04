@@ -956,13 +956,9 @@ async function readLatestSettings() {
 }
 
 async function saveSettingsPatch(patch = {}, keys = Object.keys(patch), meta = {}) {
-  const latest = await readLatestSettings();
-  if (!latest) return { ok: false, error: "settings_read_failed" };
-  const next = ToneOptimizer.normalizeSettings({
-    ...latest,
-    ...pickSettings(patch, keys)
-  });
-  const response = await send({ type: "SAVE_SETTINGS", settings: next });
+  const picked = pickSettings(patch, keys);
+  const response = await send({ type: "SAVE_SETTINGS", patch: picked });
+  const next = response?.settings;
   if (response?.ok) {
     settings = ToneOptimizer.normalizeSettings(response.settings || next);
     render();
