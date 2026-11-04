@@ -711,7 +711,8 @@
       showResult: () => revealHost(),
       startCapture: () => startScreenshotSelection("auto"),
       writeDraft: writeDraftToPage,
-      composerText: () => { const c = findVisibleComposer() || findLiveComposer(state.activeComposer); return c ? getText(c).slice(0, 8000) : ""; },
+      composerText: () => { const { body } = chatTargets(); return body ? getText(body).slice(0, 8000) : ""; },
+      composerTitle: () => { const { title } = chatTargets(); return title ? getText(title).slice(0, 300) : ""; },
       editText: editComposerFromChat,
       restoreText: restoreComposerFromChat,
       polish: polishFromChat
@@ -2353,27 +2354,64 @@
     return { ok: replaceComposer(text, { composer, expectedText: before, undoSource: before, silent: true }) };
   }
 
-  // 对话里说“给这篇加表情/改短一点”：整段替换正在写的输入框，原文留着可以恢复。
-  function editComposerFromChat(text) {
-    const composer = findVisibleComposer() || findLiveComposer(state.activeComposer);
-    if (!composer) return { ok: false, error: "这一页没找到你在写的输入框，先点一下输入框再说" };
-    const before = getText(composer);
-    const priorUndo = state.rewriteUndo;
-    // 连着改几次，恢复的仍是用户最早自己写的那版。
-    const undoSource = priorUndo && priorUndo.composer === composer && priorUndo.appliedText === before.trim() ? priorUndo.originalText : before;
-    state.draftWrittenAt = Date.now();
-    const ok = replaceComposer(text, { composer, expectedText: before, undoSource, silent: true });
-    return ok ? { ok: true } : { ok: false, error: "没能写进输入框，你的内容没有被改动" };
+  // 对话要看的“正在写的内容”：正文框，加上它上面的标题框（写笔记、发长文时常见）。
+  function chatTargets() {
+    const active = findVisibleComposer() || findLiveComposer(state.activeComposer);
+    if (!active) return { title: null, body: null };
+    if (isTitleField(active)) return { title: active, body: bodyFieldBelow(active) };
+    const title = deepQueryAll(COMPOSER_SELECTOR).map(resolveComposer)
+      .find(field => field && field !== active && field.isConnected && isTitleField(field) && bodyFieldBelow(field) === active) || null;
+    return { title, body: active };
+  }
+
+  // 对话里说“优化标题/给这篇加表情/改短一点”：直接替换对应的框，原文留着可以恢复。
+  function editComposerFromChat(edit) {
+    const { title, body } = chatTargets();
+    const done = [];
+    if (edit?.title && title) {
+      const before = getText(title);
+      const prior = state.chatTitleUndo;
+      const original = prior && prior.composer === title && prior.appliedText === before.trim() ? prior.originalText : before;
+      state.draftWrittenAt = Date.now();
+      // 改标题时别让“按标题写正文”又被触发。
+      state.suppressInput = true;
+      queueMicrotask(() => { state.suppressInput = false; });
+      if (ZiliWriteback.replace(title, edit.title).ok) {
+        state.chatTitleUndo = { composer: title, originalText: original, appliedText: edit.title.trim() };
+        state.rewriteGuard.recordWritten(title, edit.title);
+        done.push("标题");
+      }
+    }
+    if (edit?.text && body) {
+      const before = getText(body);
+      const priorUndo = state.rewriteUndo;
+      // 连着改几次，恢复的仍是用户最早自己写的那版。
+      const undoSource = priorUndo && priorUndo.composer === body && priorUndo.appliedText === before.trim() ? priorUndo.originalText : before;
+      state.draftWrittenAt = Date.now();
+      if (replaceComposer(edit.text, { composer: body, expectedText: before, undoSource, silent: true })) done.push("正文");
+    }
+    if (done.length) return { ok: true, done };
+    return { ok: false, error: body || title ? "没能写进去，你的内容没有被改动" : "这一页没找到你在写的输入框，先点一下输入框再说" };
   }
 
   function restoreComposerFromChat() {
+    const restored = [];
+    const titleUndo = state.chatTitleUndo;
+    if (titleUndo?.composer?.isConnected && getText(titleUndo.composer).trim() === titleUndo.appliedText) {
+      state.draftWrittenAt = Date.now();
+      state.suppressInput = true;
+      queueMicrotask(() => { state.suppressInput = false; });
+      if (ZiliWriteback.replace(titleUndo.composer, titleUndo.originalText).ok) { state.rewriteGuard.recordWritten(titleUndo.composer, titleUndo.originalText); restored.push("标题"); }
+    }
+    state.chatTitleUndo = null;
     const undo = state.rewriteUndo;
     const composer = findLiveComposer(undo?.composer);
-    if (!undo || !composer) return { ok: false, error: "没有可以恢复的原文" };
-    if (!ZiliInteraction.canRestoreRewrite(getText(composer), undo.appliedText)) return { ok: false, error: "内容已经被你改过，为了不覆盖你的编辑，不能恢复原文" };
-    state.draftWrittenAt = Date.now();
-    const ok = replaceComposer(undo.originalText, { composer, expectedText: undo.appliedText, silent: true });
-    return ok ? { ok: true } : { ok: false, error: "恢复失败，你现在的内容没有被改动" };
+    if (undo && composer && ZiliInteraction.canRestoreRewrite(getText(composer), undo.appliedText)) {
+      state.draftWrittenAt = Date.now();
+      if (replaceComposer(undo.originalText, { composer, expectedText: undo.appliedText, silent: true })) restored.push("正文");
+    }
+    if (restored.length) return { ok: true, done: restored };
+    return { ok: false, error: undo || titleUndo ? "内容已经被你改过，为了不覆盖你的编辑，不能恢复原文" : "没有可以恢复的原文" };
   }
 
   // 对话里说“润色一下”：走和输入框旁“润色”按钮同一条流程。

@@ -517,6 +517,14 @@
       label: "小红书",
       codes: "[笑哭R] [哭惹R] [赞R] [doge] [偷笑R] [害羞R] [捂脸R] [萌萌哒R] [哇R] [飞吻R] [心心眼R] [派对R] [吃瓜R] [种草R] [拔草R] [买爆R] [蹲后续R] [暗中观察R] [黑薯问号R] [石化R] [失望R] [皱眉R] [生气R] [叹气R] [汗颜R] [尬住R]"
     },
+    bilibili: {
+      label: "B站",
+      codes: "[doge] [笑哭] [妙啊] [吃瓜] [捂脸] [大哭] [星星眼] [喜欢] [OK] [打call] [辣眼睛] [滑稽] [微笑] [偷笑] [呲牙] [歪嘴] [思考] [无语] [疑惑] [脱单doge]"
+    },
+    weibo: {
+      label: "微博",
+      codes: "[允悲] [doge] [二哈] [笑cry] [吃瓜] [费解] [赞] [good] [哈哈] [泪] [心] [跪了] [摊手] [思考] [微笑] [偷笑] [抱抱] [鼓掌] [酷] [馋嘴]"
+    },
     douyin: {
       label: "抖音",
       codes: "[捂脸] [笑哭] [微笑] [大笑] [偷笑] [坏笑] [害羞] [可怜] [流泪] [惊讶] [得意] [飞吻] [比心] [赞] [鼓掌] [666] [玫瑰] [加油] [送心] [抱抱你] [吃瓜群众] [暗中观察] [打call] [握手] [耶] [OK]"
@@ -527,6 +535,8 @@
     const value = String(host || "").toLowerCase();
     if (/(^|\.)(xiaohongshu|xhslink)\.com$/.test(value)) return "xiaohongshu";
     if (/(^|\.)(douyin|iesdouyin)\.com$/.test(value)) return "douyin";
+    if (/(^|\.)bilibili\.com$/.test(value)) return "bilibili";
+    if (/(^|\.)weibo\.(com|cn)$/.test(value)) return "weibo";
     return "";
   }
 
@@ -1488,6 +1498,7 @@
     buildUserMessage,
     buildVisionPrompt,
     platformFromHost,
+    platformEmojiInstruction,
     generate,
     generateWebSearch,
     expandMinChars,
