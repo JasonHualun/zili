@@ -2356,11 +2356,28 @@
 
   // 对话要看的“正在写的内容”：正文框，加上它上面的标题框（写笔记、发长文时常见）。
   function chatTargets() {
-    const active = findVisibleComposer() || findLiveComposer(state.activeComposer);
+    const visible = [...new Set(deepQueryAll(COMPOSER_SELECTOR).map(resolveComposer))]
+      .filter(field => field?.isConnected && !(field instanceof HTMLInputElement && field.type !== "text"))
+      .map(field => ({ field, rect: field.getBoundingClientRect() }))
+      .filter(({ rect }) => rect.width > 40 && rect.height > 0);
+    // 先用用户刚用过的框；没有就取页面上最大的那个编辑区（写笔记、发长文的正文）。
+    // 不按网页里的先后顺序挑：第一个框往往是标题，会被误当成正文。
+    let active = state.activeComposer?.isConnected ? resolveComposer(state.activeComposer) : null;
+    if (!active) active = visible.slice().sort((a, b) => b.rect.width * b.rect.height - a.rect.width * a.rect.height)[0]?.field || null;
     if (!active) return { title: null, body: null };
-    if (isTitleField(active)) return { title: active, body: bodyFieldBelow(active) };
-    const title = deepQueryAll(COMPOSER_SELECTOR).map(resolveComposer)
-      .find(field => field && field !== active && field.isConnected && isTitleField(field) && bodyFieldBelow(field) === active) || null;
+    // 用户刚点的是标题（有标题提示，或矮、字少、正下方还有更大的编辑区）：正文取它下面那个。
+    const below = bodyFieldBelow(active);
+    const activeRect = active.getBoundingClientRect();
+    if (isTitleField(active) || (below && activeRect.height <= 160 && getText(active).length <= 120
+      && below.getBoundingClientRect().height > activeRect.height)) return { title: active, body: below };
+    const bodyRect = active.getBoundingClientRect();
+    // 标题框：有“标题”提示的优先；没有提示时，取正文正上方不远处、矮的、字少的那个框。
+    const above = visible.filter(({ field, rect }) => field !== active && !field.contains(active) && !active.contains(field)
+      && rect.bottom <= bodyRect.top + 8 && bodyRect.top - rect.bottom < 240 && rect.left < bodyRect.right && rect.right > bodyRect.left);
+    const title = above.find(({ field }) => isTitleField(field))?.field
+      || above.filter(({ field, rect }) => rect.height <= 160 && getText(field).length <= 120)
+        .sort((a, b) => b.rect.bottom - a.rect.bottom)[0]?.field
+      || null;
     return { title, body: active };
   }
 
