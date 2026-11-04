@@ -127,13 +127,13 @@
       const box=q('[data-shortcuts]');box.replaceChildren();
       if(String(settings?.reference||'').trim())return;
       const b=document.createElement('button');b.type='button';b.textContent='建立口吻';
-      b.onclick=()=>{q('textarea').value='请一步一步引导我建立口吻，每次问一个具体场景。';q('textarea').focus();};box.append(b);
+      b.onclick=()=>{setView('chat');q('[data-compose] textarea').value='请一步一步引导我建立口吻，每次问一个具体场景。';q('form').requestSubmit();};box.append(b);
     }
     // Two views share one panel: chat and the four page tools. Clicking the cat flips between them.
     function setView(view) {
       panel.dataset.view=view;
       panel.querySelectorAll('[data-view]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.view===view)));
-      if(view==='tools')renderTools();else if(view==='collect')void collect?.show();else q('textarea').focus();
+      if(view==='tools')renderTools();else if(view==='collect')void collect?.show();else q('[data-compose] textarea').focus();
       position();
     }
     function filterOn(){const s=globalThis.ZiliPageFilter?.status();return Boolean(s&&(s.filtered>0||s.watching));}
@@ -163,7 +163,7 @@
         renderShortcuts(settings);
         const data=await chrome.storage.local.get(KEY);
         history=Array.isArray(data[KEY])?data[KEY].filter(m=>['user','assistant'].includes(m.role)&&typeof m.content==='string').slice(-24):[];
-        render();position();if(view==='chat')q('textarea').focus();
+        render();position();if(view==='chat')q('[data-compose] textarea').focus();
       }catch(e){status(e.message);}
     }
     // The user asked for the change in chat, so it applies at once; one-click undo stays available.
@@ -204,10 +204,10 @@
       const r=await filter.filter(action.instruction);
       return r.ok?`看了 ${r.total} 条，隐藏 ${r.hidden} 条，往下滑也会接着筛`:r.error;
     }
-    q('form').onsubmit=async event=>{event.preventDefault();const text=q('textarea').value.trim();if(!text&&!image)return status('先输入想说的话');if(busy)return status('上一条还在回复，稍等一下');busy=true;const id=++revision;q('button[type="submit"]').disabled=true;status('正在回复…');
-      try{const r=await request({type:'ZILI_ASSIST',action:'chat',text,history:history.slice(-10).map(m=>({role:m.role,content:m.draft?`${m.content}\n${m.draft}`:m.content})),imageDataUrl:image?.dataUrl||'',page:pageSnapshot()});if(id!==revision)return;history=[...history,{role:'user',content:text||'［发送了一张图片］'},{role:'assistant',content:r.text,...(r.draft?{draft:r.draft}:{})}].slice(-24);await chrome.storage.local.set({[KEY]:history});q('textarea').value='';clearImage();render();const changed=await applyProposal(r.proposal);const pageResult=await runPageAction(r.pageAction);if(r.pageAction)renderShortcuts((await request({type:'GET_SETTINGS'})).settings);status(pageResult||(changed?'已修改，可撤销':'已回复'));position();}catch(e){status(e.message);}finally{busy=false;q('button[type="submit"]').disabled=false;}};
-    q('textarea').onkeydown=e=>{if(e.key==='Enter'&&!e.shiftKey&&!e.isComposing&&!global.ZiliKeyGuard?.isImeKey(e)){e.preventDefault();q('form').requestSubmit();}};
-    q('textarea').onpaste=event=>{const item=[...Array.from(event.clipboardData?.items||[])].find(entry=>ACCEPTED_IMAGE_TYPES.has(entry.type));if(!item)return;selectImage(item.getAsFile()).catch(error=>status(error.message));};
+    q('form').onsubmit=async event=>{event.preventDefault();const text=q('[data-compose] textarea').value.trim();if(!text&&!image)return status('先输入想说的话');if(busy)return status('上一条还在回复，稍等一下');busy=true;const id=++revision;q('button[type="submit"]').disabled=true;status('正在回复…');
+      try{const r=await request({type:'ZILI_ASSIST',action:'chat',text,history:history.slice(-10).map(m=>({role:m.role,content:m.draft?`${m.content}\n${m.draft}`:m.content})),imageDataUrl:image?.dataUrl||'',page:pageSnapshot()});if(id!==revision)return;history=[...history,{role:'user',content:text||'［发送了一张图片］'},{role:'assistant',content:r.text,...(r.draft?{draft:r.draft}:{})}].slice(-24);await chrome.storage.local.set({[KEY]:history});q('[data-compose] textarea').value='';clearImage();render();const changed=await applyProposal(r.proposal);const pageResult=await runPageAction(r.pageAction);if(r.pageAction)renderShortcuts((await request({type:'GET_SETTINGS'})).settings);status(pageResult||(changed?'已修改，可撤销':'已回复'));position();}catch(e){status(e.message);}finally{busy=false;q('button[type="submit"]').disabled=false;}};
+    q('[data-compose] textarea').onkeydown=e=>{if(e.key==='Enter'&&!e.shiftKey&&!e.isComposing&&!global.ZiliKeyGuard?.isImeKey(e)){e.preventDefault();q('form').requestSubmit();}};
+    q('[data-compose] textarea').onpaste=event=>{const item=[...Array.from(event.clipboardData?.items||[])].find(entry=>ACCEPTED_IMAGE_TYPES.has(entry.type));if(!item)return;selectImage(item.getAsFile()).catch(error=>status(error.message));};
     q('[data-add-image]').onclick=()=>q('[data-image-input]').click();
     q('[data-image-input]').onchange=event=>selectImage(event.target.files?.[0]).catch(error=>status(error.message));
     q('[data-remove-image]').onclick=()=>{clearImage();status('已移除图片');position();};
