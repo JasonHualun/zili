@@ -707,7 +707,9 @@
     });
     state.companionChat = globalThis.ZiliCompanionChat.attach(state.companionShadow, {
       send,
-      hasResult: () => Boolean(state.currentComment || state.currentRewrite),
+      // 按标题直接写进正文后没有候选卡，但短/中/长和恢复原文还能用，也算“当前结果”。
+      hasResult: () => Boolean(state.currentComment || state.currentRewrite || state.lengthRedo?.composer?.isConnected || state.rewriteUndo?.composer?.isConnected),
+      resultLabel: () => (!state.currentComment && !state.currentRewrite && state.lengthRedo?.composer?.isConnected ? "短中长" : "当前结果"),
       showResult: () => revealHost(),
       startCapture: () => startScreenshotSelection("auto"),
       writeDraft: writeDraftToPage,
