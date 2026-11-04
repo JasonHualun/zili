@@ -786,7 +786,7 @@
     }
     const draftMode = mode === "rewrite" || mode === "expand";
     const source = draftMode
-      ? cleanText(input.text, 1000)
+      ? cleanText(input.text, 4000)
       : cleanText(input.selectedText, 1200);
     const context = mode === "translate" ? "" : cleanText(draftMode ? input.context : input.pageContext, 1200);
     const sourceLabel = mode === "translate"
@@ -805,6 +805,9 @@
     return [
       context ? `页面语境：${context}` : "",
       `${sourceLabel}：${source}`,
+      draftMode && input.instruction
+        ? `用户这次对这篇稿子的要求：${cleanText(input.instruction, 300)}。照这个要求重写成一篇完整、通顺、读得下去的稿子，不是把原文删几句或拼几句；长度、语气以这个要求为准，优先于上面的默认篇幅；意思和事实以草稿为准，不编造草稿里没有的经历和数据。`
+        : "",
       mode === "comment" && input.replyBrief
         ? [
             `用户在回复框里写的：${cleanText(input.replyBrief, 300)}`,

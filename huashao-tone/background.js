@@ -32,7 +32,8 @@ function responseCacheKey(mode, message, settings, provider, model) {
     provider,
     model,
     mode,
-    text: String(message.text || "").slice(0, 1000),
+    text: String(message.text || "").slice(0, 4000),
+    instruction: String(message.instruction || "").slice(0, 300),
     selectedText: String(message.selectedText || "").slice(0, 1200),
     replyBrief: String(message.replyBrief || "").slice(0, 300),
     pageContext: String(message.pageContext || "").slice(0, 800),
@@ -699,7 +700,8 @@ async function optimize(message) {
   try {
     const generationInput = {
       mode,
-      text: String(message.text || "").slice(0, 1000),
+      text: String(message.text || "").slice(0, 4000),
+      instruction: String(message.instruction || "").slice(0, 300),
       selectedText: String(message.selectedText || "").slice(0, 1200),
       replyBrief: mode === "comment" ? String(message.replyBrief || "").slice(0, 300) : "",
       pageContext: String(message.pageContext || "").slice(0, 800),

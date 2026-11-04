@@ -210,6 +210,14 @@
         return `已改好${what}，发出前再看一眼`;
       }
       if(action.type==='restore_text'){const r=api.restoreText?.();return r?.ok?'已恢复原文':(r?.error||'没有可以恢复的原文');}
+      // 重写正文：标题（若有）在这里直接改，正文交给字里的写作流程，写好后直接替换正文。
+      if(action.type==='rewrite'){
+        if(action.title){const t=api.editText?.({title:action.title});if(!t?.ok)status(t?.error||'标题没改成');}
+        const r=api.polish?.({instruction:action.instruction,length:action.length});
+        if(!r?.ok)return r?.error||'这一页没找到正文框';
+        close();
+        return '';
+      }
       if(action.type==='polish'){const r=api.polish?.();return r?.ok?'正在按你的口吻润色输入框里的内容…':(r?.error||'这一页没找到输入框');}
       if(action.type==='collect'){if(q('[data-view="collect"]').hidden)return '这一页用不了收纳';setView('collect');return '';}
       if(action.type==='tutor'){const r=await api.send({type:'ZILI_VOICE_TUTOR_OPEN'});if(r?.ok){close();return '';}return r?.error||'英语陪练没打开，请重试';}

@@ -2465,11 +2465,14 @@
   }
 
   // 对话里说“润色一下”：走和输入框旁“润色”按钮同一条流程。
-  function polishFromChat() {
-    const composer = findVisibleComposer() || findLiveComposer(state.activeComposer);
-    if (!composer || !getText(composer).trim()) return { ok: false, error: "先在输入框里写点内容，再让我润色" };
+  // 对话里说“润色一下”“改短点、调皮点”：走和输入框旁“润色”按钮同一条写作流程（口吻、去 AI 味、结构要求都在），
+  // 把用户这句要求一起带上，写完直接替换正文，可恢复原文。
+  function polishFromChat(request = {}) {
+    const composer = chatTargets().body;
+    if (!composer || !getText(composer).trim()) return { ok: false, error: "先在输入框里写点内容，再让我改" };
     if (!ZiliFeatureGates.allowsManualRewrite(state.settings)) return { ok: false, error: "润色功能在设置里关着，先打开再试" };
-    void optimizeRewrite(true, composer, { manualTrigger: true, mode: "rewrite", lengthTier: state.manualLength, rewriteLength: state.rewriteLength });
+    const length = ["short", "medium", "long"].includes(request.length) ? request.length : state.rewriteLength;
+    void optimizeRewrite(true, composer, { manualTrigger: true, mode: "rewrite", lengthTier: state.manualLength, rewriteLength: length, instruction: request.instruction || "", directApply: true });
     return { ok: true };
   }
 
@@ -2706,6 +2709,7 @@
       rewriteLength: manualTrigger && requestMode === "rewrite" ? options.rewriteLength || "" : "",
       fromTitle: Boolean(bodyTarget),
       targetChars,
+      instruction: String(options.instruction || "").slice(0, 300),
       settingsOverride: candidateSettings(),
       forceFresh: force,
       variationNonce: force ? `${Date.now()}-${Math.random()}` : "",
