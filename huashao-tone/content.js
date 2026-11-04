@@ -2509,15 +2509,37 @@
     state.currentMethod = null;
   }
 
+  // 小红书网页版等：评论框没点开时上面盖着一层“说点什么…”，直接往下面的输入区写字，网站不认（提示语还在、发送按钮不亮）。
+  // 发现输入区中心被它旁边的一层盖住，就模拟按一下那层，把评论框真正打开再写。
+  async function openCoveredComposer(composer) {
+    const rect = composer.getBoundingClientRect();
+    if (!rect.width || !rect.height) return false;
+    const x = rect.left + rect.width / 2;
+    const y = rect.top + rect.height / 2;
+    const cover = composer.getRootNode()?.elementFromPoint?.(x, y) || document.elementFromPoint(x, y);
+    if (!cover || cover === composer || composer.contains(cover)) return false;
+    if ([state.shadow, state.companionShadow].includes(cover.getRootNode()) || cover === state.host || cover.closest?.("a[href], button")) return false;
+    const near = composer.parentElement?.parentElement || composer.parentElement;
+    if (!near?.contains(cover)) return false;
+    const init = { bubbles: true, cancelable: true, composed: true, view: window, button: 0, buttons: 1, clientX: x, clientY: y, pointerId: 1, isPrimary: true, pointerType: "mouse" };
+    for (const type of ["pointerover", "mouseover", "pointerdown", "mousedown", "pointerup", "mouseup", "click"]) {
+      cover.dispatchEvent(new (type.startsWith("pointer") && typeof PointerEvent === "function" ? PointerEvent : MouseEvent)(type, init));
+    }
+    await new Promise(resolve => setTimeout(resolve, 350));
+    return true;
+  }
+
   async function writeCommentToReply(text) {
     const replyButton = state.currentComment?.vision
       ? null
       : state.selectionInfo?.article?.querySelector?.('button[data-testid="reply"]');
     if (!replyButton) {
       // 不是 X：直接找页面上的评论框写入（含 B 站这类藏在网页组件里的），写完核对真的写进去了；找不到就复制。
-      const current = findCommentComposer();
+      let current = findCommentComposer();
       if (current) {
-        current.scrollIntoView?.({ block: "center", behavior: "smooth" });
+        current.scrollIntoView?.({ block: "center", behavior: "auto" });
+        // 点开后网站会换一个新的输入区，旧的那个已经不在页面上，要重新找。
+        if (await openCoveredComposer(current) || !current.isConnected) current = findCommentComposer() || current;
         current.focus?.({ preventScroll: true });
         const written = replaceComposer(text, { composer: current });
         const landed = written && getText(current).replace(/\s/g, "").includes(text.replace(/\s/g, "").slice(0, 12));
