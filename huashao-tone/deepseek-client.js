@@ -511,10 +511,11 @@
     return global.ZiliToneGuard?.redlineInstruction?.() || "";
   }
 
-  // 小红书、抖音评论区认自己的方括号表情码，发出去会显示成平台表情；码表只收公开整理过、确认存在的。
+  // 各平台的方括号表情码。只有 verified 的输入框实测过会转成表情图，其余平台先用普通 emoji，码表留着，实测通过再把 verified 打开。
   const PLATFORM_EMOJI = {
     xiaohongshu: {
       label: "小红书",
+      verified: true,
       codes: "[笑哭R] [哭惹R] [赞R] [doge] [偷笑R] [害羞R] [萌萌哒R] [哇R] [飞吻R] [派对R] [吃瓜R] [买爆R] [暗中观察R] [黑薯问号R] [石化R] [失望R] [皱眉R] [生气R] [叹气R] [汗颜R]"
     },
     bilibili: {
@@ -545,9 +546,10 @@
     const platform = PLATFORM_EMOJI[platformId];
     const emoji = input.settings?.emoji;
     if (!platform || emoji === "none") return "";
-    // 小红书只有发笔记的编辑器（creator.xiaohongshu.com）会把 [笑哭R] 转成表情；评论框不转，会以文字留下，回复评论时用普通 emoji。
+    // 小红书只有发笔记的编辑器（creator.xiaohongshu.com）实测会把 [笑哭R] 转成表情；评论框不转。其他平台没实测过，一律用普通 emoji，避免方括号文字留在稿子里。
     const noteEditor = /^creator\./i.test(String(input.platformHost || "")) && input.mode !== "comment";
-    if (platformId === "xiaohongshu" && !noteEditor) return "当前在小红书评论区。评论框不认 [笑哭R] 这类表情码，要加表情只用普通 emoji 字符（如 😂 😭 👍），不要写任何方括号表情码。";
+    const useCodes = platform.verified && (platformId !== "xiaohongshu" || noteEditor);
+    if (!useCodes) return `当前在${platform.label}${platformId === "xiaohongshu" ? "评论区" : ""}。要加表情只用普通 emoji 字符（如 😂 😭 👍），不要写任何方括号表情码（像 [笑哭R]、[doge] 这种），这里不一定会转成表情。`;
     return `当前在${platform.label}。要加表情时，用${platform.label}自己的方括号表情码，不用通用 emoji 字符；只能从这些里选：${platform.codes}。表情码放句尾或停顿处，${emoji === "often" ? "一条最多两个" : "一条最多一个，语境不合适就不加"}。`;
   }
 
