@@ -2534,17 +2534,16 @@
     }
     if (bodyTarget && document.contains(bodyTarget)) {
       const bodyText = getText(bodyTarget);
-      // 正文框是空的就直接填；已经写了东西就先给预览，点了才覆盖。
+      // 按标题写正文一律直接写进正文框；正文框原来有字，就留着“恢复原文”能一键退回。
+      // 换篇幅重写时退回的是用户自己的原文，不是上一版生成结果。
       state.lengthRedo = { composer: liveComposer, mode: "expand", fromTitle: true, length: lengthTier };
-      if (!bodyText || bodyText === state.lastAppliedText) {
-        // 写正文会把光标带进正文框，别让它当成“用户点进来了”再弹一张润色卡把结果顶掉。
-        state.draftWrittenAt = Date.now();
-        replaceComposer(response.output, { composer: bodyTarget, expectedText: bodyText, undoSource: bodyText, usageResult: response });
-      } else {
-        showRewriteCandidate({ ...response, mode: "expand", lengthTier, titleComposer: liveComposer }, bodyTarget, bodyText);
-        state.shadow.querySelector(".zili-apply").textContent = "写进正文";
-        state.shadow.querySelector(".zili-status").textContent = "按标题写好了正文，正文框里已有内容，确认后再覆盖";
-      }
+      const priorUndo = state.rewriteUndo;
+      const undoSource = priorUndo && priorUndo.composer === bodyTarget && priorUndo.appliedText === bodyText.trim()
+        ? priorUndo.originalText
+        : bodyText === state.lastAppliedText ? "" : bodyText;
+      // 写正文会把光标带进正文框，别让它当成“用户点进来了”再自动润色一遍把结果顶掉。
+      state.draftWrittenAt = Date.now();
+      replaceComposer(response.output, { composer: bodyTarget, expectedText: bodyText, undoSource, usageResult: response });
       return;
     }
     state.activeComposer = liveComposer;
