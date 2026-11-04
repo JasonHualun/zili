@@ -107,7 +107,7 @@
     punctuation: "adaptive",
     emoji: "adaptive",
     emojiFavorites: [],
-    profileNotice: "先回答 6 个场景，也可以直接粘贴样例",
+    profileNotice: "正在读取口吻档案…",
     profileNoticeError: false,
     answerNotice: "",
     trialBusy: false,
@@ -1243,7 +1243,12 @@
     await restoreChat();
     const [settings, engineStatus] = await Promise.all([getSettings(), getEngineStatus()]);
     applySettingsPreferences(settings);
-    if (state.hasSavedProfile) setProfileNotice("表达档案已建立，可补充样例让它更准");
+    // 打开就明确告诉用户这台浏览器里有没有口吻档案、有多少字，不让人靠猜。
+    const savedChars = String(settings?.reference || "").trim().length;
+    if (!settings) setProfileNotice("暂时读不到口吻档案，重开弹窗再看一次", true);
+    else setProfileNotice(state.hasSavedProfile
+      ? `已有口吻档案 ${savedChars} 字，点“直接粘贴样例”可查看和修改`
+      : "这个浏览器里还没有口吻档案：回答 6 个场景，或直接粘贴样例");
     renderMode();
     renderWizard();
     renderChat();
