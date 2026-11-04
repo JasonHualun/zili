@@ -153,7 +153,7 @@ Chrome 不允许程序替人装插件，所以这一步只能主人自己点。�
      python3 zili-bridge/install.py --allow claude,codex --folder ~/Documents/字里收纳
      ```
 
-主人有自己的收纳 Skill 的话，再加上 `--skill Skill名字`。不加就用字里自带的整理规则：按主题分文件夹，每条写标题、原链接、要点摘要和正文。
+主人有自己的收纳 Skill 的话，再加上 `--skill Skill名字`；先读一下这个 Skill，它要存到收纳文件夹以外的目录（比如 Obsidian 库）时，再加 `--skill-dir 目录路径`（多个用英文逗号隔开），否则 Codex、Claude Code 没有权限写进去。不加就用字里自带的整理规则：按主题分文件夹，每条写标题、原链接、要点摘要和正文。
 
 装完后教主人：
 1. 在 `chrome://extensions` 里点字里的刷新按钮，再刷新网页。

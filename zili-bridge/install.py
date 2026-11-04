@@ -3,7 +3,7 @@
 再登记给装了字里的浏览器（Chrome、豆包等，每个只写一个 JSON 文件，不装任何软件）。
 
 用法：python3 install.py                      一步步问你（推荐）
-      python3 install.py --allow claude,codex --folder ~/Documents/字里收纳 [--skill 名字]   不问，直接按参数装
+      python3 install.py --allow claude,codex --folder ~/Documents/字里收纳 [--skill 名字] [--skill-dir 路径1,路径2]   不问，直接按参数装
       python3 install.py --allow all            不问，允许找到的所有 Agent，文件夹和 Skill 沿用上次（没有就用默认）
       python3 install.py --scan                 只看：列出这台电脑上找到的 Agent 和已加载字里的浏览器，什么都不改
       python3 install.py --id <插件ID>          手动指定插件 ID（自动找不到时）
@@ -121,7 +121,17 @@ def choose_config():
         skill = old.get("skill") or ""
     if skill is None:
         skill = ask("有自己的收纳 Skill 吗？有就输入名字，没有直接回车（用字里自带的整理规则）：[%s] " % (old.get("skill") or "无"), old.get("skill") or "")
-    return {"allowed": allowed, "folder": str(folder), "skill": skill.strip()}
+    skill = skill.strip()
+    dirs = arg("--skill-dir")
+    if not skill:
+        dirs = ""
+    elif dirs is None and unattended:
+        dirs = ",".join(old.get("skill_dirs") or [])
+    elif dirs is None:
+        dirs = ask("这个 Skill 会把东西存到收纳文件夹以外的地方吗（比如 Obsidian 库）？有就输入文件夹路径，多个用英文逗号隔开，没有直接回车：[%s] "
+                   % (",".join(old.get("skill_dirs") or []) or "无"), ",".join(old.get("skill_dirs") or []))
+    skill_dirs = [str(Path(d.strip()).expanduser().resolve()) for d in dirs.split(",") if d.strip()]
+    return {"allowed": allowed, "folder": str(folder), "skill": skill, "skill_dirs": skill_dirs}
 
 
 def host_file(browser_dir):
@@ -167,7 +177,8 @@ def main():
             "allowed_origins": ["chrome-extension://%s/" % i for i in ids],
         }, ensure_ascii=False, indent=2), encoding="utf-8")
         print("已登记：%s（插件 %s）" % (target, ", ".join(ids)))
-    print("已允许：%s\n收纳文件夹：%s\n收纳 Skill：%s" % (", ".join(config["allowed"]), config["folder"], config["skill"] or "无（用字里自带规则）"))
+    print("已允许：%s\n收纳文件夹：%s\n收纳 Skill：%s%s" % (", ".join(config["allowed"]), config["folder"], config["skill"] or "无（用字里自带规则）",
+          "\nSkill 可写入：%s" % "、".join(config["skill_dirs"]) if config["skill_dirs"] else ""))
     print("运行副本：%s\n后台收纳服务：%s\n要换 Agent 或文件夹、或改了 zili_bridge.py，重跑本脚本即可。重新加载字里插件后生效。" % (RUNTIME_BRIDGE, WORKER_PLIST))
 
 
