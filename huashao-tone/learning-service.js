@@ -1,5 +1,6 @@
 (function (global) {
   const SAMPLE_KEY = "ziliExpressionSamples";
+  const VERIFY_ASK = /(?:检验|检查|核实|核验|核查|查证|验证|辨别|鉴别|判断|看看)?(?:一下)?(?:它的|这个的|是不是)?(?:真假|真伪|是真是假|真的假的|是真的吗|是不是真的|是假的吗|假新闻|谣言|辟谣|可信吗|可不可信|靠谱吗)|^(?:帮我)?(?:核实|核验|查证)(?:一下)?/;
   const WORD_KEY = "ziliEnglishNotes";
   const LESSON_KEY = "ziliTutorLessons"; // 旧版上课记录，打开陪练时删掉
   const allowed = { punctuation: ["normal", "sparse", "adaptive", "noPeriods"], emoji: ["none", "occasional", "often", "adaptive"], style: ["human", "opinion", "calm", "playful"], theme: ["mist", "sage", "sand", "ink"] };
@@ -93,6 +94,30 @@
       const habits = text.split(/[，,；;\n]/).filter(s=>/(?:感叹号|省略号|个点)/.test(s)).join("；");
       if (habits && String(settings.reference || "").length + habits.length < 2350) patch.reference = [settings.reference, "标点表达习惯："+habits].filter(Boolean).join("\n");
       return {ok:true,text:"好，以后不加句号",proposal:patch};
+    }
+    // 对话里说“帮我检验真假/这是真的吗/是不是谣言”：交给字里的联网核验（和划词“核验真假”同一套），不让聊天模型凭印象回答。
+    if (message.action === "chat" && !imageDataUrl && dependencies.verifyClaim && VERIFY_ASK.test(text) && !/(?:帮我写|写一[篇条段]|润色|改成|评论区回复)/.test(text)) {
+      const pasted = text.replace(VERIFY_ASK, "").replace(/(?:帮我|帮忙|请|你|给我|一下|看看|看下|这个|这条|这篇|新闻|消息)/g, "").replace(/[\s，。,.!！?？：:]/g, "");
+      const claim = pasted.length >= 15
+        ? clean(text, 1200)
+        : clean(page?.selection || page?.post || [page?.title, page?.description].filter(Boolean).join("\n") || page?.text, 1200);
+      if (claim) {
+        const result = await dependencies.verifyClaim({ claim, pageContext: [page?.title, page?.author, page?.url].filter(Boolean).join(" · ") });
+        if (!result?.ok) {
+          return { ok: true, text: /web_search_model_required/.test(result?.error || "")
+            ? "核验要先联网查来源，当前模型不能联网。到字里设置的大模型接口里配置一个能联网的模型（比如通义千问），再让我核验。"
+            : "这次联网核验没成功，稍后再让我试一次。" };
+        }
+        const sources = (result.sources || []).slice(0, 5).map(item => `- ${[item.title, item.date].filter(Boolean).join("，")}${item.url ? ` ${item.url}` : ""}`).join("\n");
+        const lines = [
+          `核验结论：${result.verdict || "证据不足"}。${result.output || ""}`,
+          result.correctedClaim ? `更准确的说法：${result.correctedClaim}` : "",
+          result.evidence ? `关键依据：${result.evidence}` : "",
+          sources ? `来源：\n${sources}` : "没查到可靠来源，只能算证据不足。",
+          Number.isFinite(result.aiTracePercent) && result.aiTracePercent > 0 ? `AI 痕迹风险：${result.aiTracePercent}%${result.aiTraceReason ? `（${result.aiTraceReason}）` : ""}` : ""
+        ].filter(Boolean);
+        return { ok: true, text: lines.join("\n\n") };
+      }
     }
     const engine = await readModelEngine();
     const provider = engine.provider;
