@@ -87,10 +87,30 @@
       }
     }
 
+    // 字里写进去的内容（按标题写的正文、润色结果、对话里改的）记下来：
+    // 用户在上面改几个字、点一下，都还算字里写的，不再自动润色一遍；整段删掉重写才重新算。
+    function recordWritten(composer, text) {
+      if (!composer) return;
+      const normalized = normalizeDraft(text);
+      if (normalized) recordFor(composer).written = normalized;
+    }
+
+    function mostlyWritten(written, current) {
+      if (!written || !current) return false;
+      const size = 8;
+      const chunks = [];
+      for (let i = 0; i + size <= written.length; i += size) chunks.push(written.slice(i, i + size));
+      if (!chunks.length) return current.includes(written);
+      const kept = chunks.filter(chunk => current.includes(chunk)).length;
+      return kept / chunks.length >= 0.5;
+    }
+
     function shouldSkip(composer, text) {
       if (!composer) return false;
       const normalized = normalizeDraft(text);
-      return Boolean(normalized && records.get(composer)?.skipped.has(normalized));
+      const record = records.get(composer);
+      if (!normalized || !record) return false;
+      return record.skipped.has(normalized) || mostlyWritten(record.written, normalized);
     }
 
     function noteInput(composer, text, inputType = "") {
@@ -108,6 +128,7 @@
     return {
       noteInput,
       recordApplied,
+      recordWritten,
       shouldSkip
     };
   }

@@ -2278,6 +2278,7 @@
     }
 
     const appliedText = text.trim();
+    state.rewriteGuard.recordWritten(element, appliedText);
     if (options.automatic) {
       state.rewriteGuard.recordApplied(element, options.expectedText, appliedText);
     }
