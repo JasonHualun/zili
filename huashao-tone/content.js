@@ -1743,7 +1743,8 @@
       ? `AI痕迹风险 ${Math.round(Number(result.aiTracePercent) || 0)}%`
       : `把握度 ${Math.round((result.confidence || 0) * 100)}%`;
     state.shadow.querySelector(".zili-confidence").hidden = result.mode === "english" || result.copyText;
-    state.shadow.querySelector(".zili-apply").hidden = ['verify','english'].includes(result.mode) || result.copyText;
+    // 讲解、解题、核验、翻译是给你看的，不是要发出去的话：不给“写进输入框”，想接着聊用下面的“继续问”。只有回复才写进输入框。
+    state.shadow.querySelector(".zili-apply").hidden = ['verify','english','explain','answer','translate'].includes(result.mode) || result.copyText;
     state.shadow.querySelector(".zili-copy").hidden = false;
     state.shadow.querySelector(".zili-apply").textContent = "写进输入框";
     renderSelectionRoute(result.vision ? "" : result.mode);
