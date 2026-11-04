@@ -48,7 +48,9 @@
     const collect=global.ZiliCollectPanel?.attach(panel,{status,position:()=>position(),hideForCapture:on=>{root.host.style.visibility=on?'hidden':'';}});
     if(collect)q('[data-messages]').before(collect.element);else q('[data-view="collect"]').hidden=true;
     const request = async message => {
-      const r = await api.send(message);
+      // 每个请求都有上限：模型卡住时给出提示，不让发送按钮一直锁着。
+      const r = await api.send(message, { timeoutMs: message.type === 'ZILI_ASSIST' ? 60_000 : 15_000 });
+      if (/runtime_timeout/.test(r?.error || '')) throw Error('等太久没回应，模型这会儿可能比较慢，再发一次试试');
       if (r?.ok) return r;
       if (/vision_model_required/i.test(r?.error || '')) throw Error('当前模型不能看图，请选择带“可识图”标识的模型');
       if (/screenshot_image_invalid|vision_image_invalid/i.test(r?.error || '')) throw Error('图片太大或格式不支持，请换一张再试');
@@ -104,11 +106,20 @@
       q('[data-messages]').replaceChildren(...rows);
       q('[data-messages]').scrollTop=q('[data-messages]').scrollHeight;
     }
+    // 面板优先放在小猫上方；上方放不下就放下方，再不行放左右两侧，始终不盖住小猫，保证小猫随时点得到。
     function position() {
       if(panel.hidden)return;
-      const r=root.host.getBoundingClientRect();
-      panel.style.left=`${Math.max(12,Math.min(innerWidth-panel.offsetWidth-12,r.right-panel.offsetWidth))}px`;
-      panel.style.top=`${Math.max(12,Math.min(innerHeight-panel.offsetHeight-12,r.top-panel.offsetHeight-8))}px`;
+      const r=root.host.getBoundingClientRect(),w=panel.offsetWidth,h=panel.offsetHeight,gap=8,edge=12;
+      const clampX=x=>Math.max(edge,Math.min(innerWidth-w-edge,x)),clampY=y=>Math.max(edge,Math.min(innerHeight-h-edge,y));
+      const spots=[
+        {left:clampX(r.right-w),top:r.top-h-gap,fits:r.top-h-gap>=edge},
+        {left:clampX(r.right-w),top:r.bottom+gap,fits:r.bottom+gap+h<=innerHeight-edge},
+        {left:r.left-w-gap,top:clampY(r.top),fits:r.left-w-gap>=edge},
+        {left:r.right+gap,top:clampY(r.top),fits:r.right+gap+w<=innerWidth-edge}
+      ];
+      const spot=spots.find(s=>s.fits)||spots[0];
+      panel.style.left=`${clampX(spot.left)}px`;
+      panel.style.top=`${clampY(spot.top)}px`;
     }
     function close() { panel.hidden=true; }
     // Quick chips: dehydrate with the instruction saved in the popup's settings, plus profile setup until one exists.
@@ -193,7 +204,7 @@
       const r=await filter.filter(action.instruction);
       return r.ok?`看了 ${r.total} 条，隐藏 ${r.hidden} 条，往下滑也会接着筛`:r.error;
     }
-    q('form').onsubmit=async event=>{event.preventDefault();const text=q('textarea').value.trim();if(busy||(!text&&!image))return;busy=true;const id=++revision;q('button[type="submit"]').disabled=true;status('正在回复…');
+    q('form').onsubmit=async event=>{event.preventDefault();const text=q('textarea').value.trim();if(!text&&!image)return status('先输入想说的话');if(busy)return status('上一条还在回复，稍等一下');busy=true;const id=++revision;q('button[type="submit"]').disabled=true;status('正在回复…');
       try{const r=await request({type:'ZILI_ASSIST',action:'chat',text,history:history.slice(-10).map(m=>({role:m.role,content:m.draft?`${m.content}\n${m.draft}`:m.content})),imageDataUrl:image?.dataUrl||'',page:pageSnapshot()});if(id!==revision)return;history=[...history,{role:'user',content:text||'［发送了一张图片］'},{role:'assistant',content:r.text,...(r.draft?{draft:r.draft}:{})}].slice(-24);await chrome.storage.local.set({[KEY]:history});q('textarea').value='';clearImage();render();const changed=await applyProposal(r.proposal);const pageResult=await runPageAction(r.pageAction);if(r.pageAction)renderShortcuts((await request({type:'GET_SETTINGS'})).settings);status(pageResult||(changed?'已修改，可撤销':'已回复'));position();}catch(e){status(e.message);}finally{busy=false;q('button[type="submit"]').disabled=false;}};
     q('textarea').onkeydown=e=>{if(e.key==='Enter'&&!e.shiftKey&&!e.isComposing&&!global.ZiliKeyGuard?.isImeKey(e)){e.preventDefault();q('form').requestSubmit();}};
     q('textarea').onpaste=event=>{const item=[...Array.from(event.clipboardData?.items||[])].find(entry=>ACCEPTED_IMAGE_TYPES.has(entry.type));if(!item)return;selectImage(item.getAsFile()).catch(error=>status(error.message));};

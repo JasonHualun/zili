@@ -1557,7 +1557,7 @@
         initialAnswer: session.initialAnswer,
         messages: session.messages.slice(-12)
       }
-    });
+    }, { timeoutMs: 90_000 });
     state.followupBusy = false;
     if (!response?.ok || !response.output) {
       state.shadow.querySelector(".zili-status").textContent = engineErrorMessage(response?.error);
@@ -2614,7 +2614,7 @@
           previousStyle,
       pageContext: articleContext(info.article)
         || `${document.title || "当前网页"} · ${location.hostname || ""}`.trim()
-    });
+    }, { timeoutMs: 90_000 });
     if (
       id !== state.requestId
       || !ZiliFeatureGates.allowsSelectionMode(state.settings, info.mode)

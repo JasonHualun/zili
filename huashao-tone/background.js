@@ -641,6 +641,12 @@ function resolveWebSearchEngine(engine) {
   return null;
 }
 
+// 同一标签页里，只有同一类请求才互相顶替：写正文时划词问一句，不会把正文那边挤成“超时”。
+function optimizeAbortGroup(mode) {
+  if (mode === "followup") return "followup";
+  return ["rewrite", "expand"].includes(mode) || !mode ? "write" : "selection";
+}
+
 async function optimize(message) {
   const savedSettings = await readSettings();
   const settings = message.settingsOverride
@@ -1144,87 +1150,87 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 
   if (message?.type === "ZILI_METHOD_INTAKE") {
-    organizeMethodIntake(message).then(sendResponse);
+    organizeMethodIntake(message).then(sendResponse, error => sendResponse({ ok: false, error: error?.message || "background_error" }));
     return true;
   }
 
   if (message?.type === "ZILI_ARCHITECT_ROUTE") {
-    routeArchitectIntent(message).then(sendResponse);
+    routeArchitectIntent(message).then(sendResponse, error => sendResponse({ ok: false, error: error?.message || "background_error" }));
     return true;
   }
 
   if (message?.type === "SAVE_DEEPSEEK_KEY") {
-    saveDeepSeekKey(message.key).then(sendResponse);
+    saveDeepSeekKey(message.key).then(sendResponse, error => sendResponse({ ok: false, error: error?.message || "background_error" }));
     return true;
   }
 
   if (message?.type === "CLEAR_DEEPSEEK_KEY") {
-    clearDeepSeekKey().then(sendResponse);
+    clearDeepSeekKey().then(sendResponse, error => sendResponse({ ok: false, error: error?.message || "background_error" }));
     return true;
   }
 
   if (message?.type === "SELECT_MODEL_PROVIDER") {
-    selectModelProvider(message.provider).then(sendResponse);
+    selectModelProvider(message.provider).then(sendResponse, error => sendResponse({ ok: false, error: error?.message || "background_error" }));
     return true;
   }
 
   if (message?.type === "SELECT_PROVIDER_MODEL") {
-    selectProviderModel(message.provider, message.model).then(sendResponse);
+    selectProviderModel(message.provider, message.model).then(sendResponse, error => sendResponse({ ok: false, error: error?.message || "background_error" }));
     return true;
   }
 
   if (message?.type === "SAVE_PROVIDER_KEY") {
-    saveProviderKey(message.provider, message.key).then(sendResponse);
+    saveProviderKey(message.provider, message.key).then(sendResponse, error => sendResponse({ ok: false, error: error?.message || "background_error" }));
     return true;
   }
 
   if (message?.type === "SAVE_CUSTOM_PROVIDER") {
-    saveCustomProvider(message).then(sendResponse);
+    saveCustomProvider(message).then(sendResponse, error => sendResponse({ ok: false, error: error?.message || "background_error" }));
     return true;
   }
 
   if (message?.type === "FETCH_CUSTOM_MODELS") {
-    fetchCustomModels(message).then(sendResponse);
+    fetchCustomModels(message).then(sendResponse, error => sendResponse({ ok: false, error: error?.message || "background_error" }));
     return true;
   }
 
   if (message?.type === "CLEAR_PROVIDER_KEY") {
-    clearProviderKey(message.provider).then(sendResponse);
+    clearProviderKey(message.provider).then(sendResponse, error => sendResponse({ ok: false, error: error?.message || "background_error" }));
     return true;
   }
 
   if (message?.type === "GET_ENGINE_STATUS") {
-    engineStatus().then(sendResponse);
+    engineStatus().then(sendResponse, error => sendResponse({ ok: false, error: error?.message || "background_error" }));
     return true;
   }
 
   if (message?.type === "TEST_DEEPSEEK_CONNECTION") {
-    testConnection().then(sendResponse);
+    testConnection().then(sendResponse, error => sendResponse({ ok: false, error: error?.message || "background_error" }));
     return true;
   }
 
   if (message?.type === "TEST_MODEL_CONNECTION") {
-    testConnection().then(sendResponse);
+    testConnection().then(sendResponse, error => sendResponse({ ok: false, error: error?.message || "background_error" }));
     return true;
   }
 
   if (message?.type === "OPTIMIZE") {
-    optimize({ ...message, platformHost: senderHost(sender), abortKey: sender?.tab?.id != null ? `tab:${sender.tab.id}` : "" }).then(sendResponse);
+    optimize({ ...message, platformHost: senderHost(sender), abortKey: sender?.tab?.id != null ? `tab:${sender.tab.id}:${optimizeAbortGroup(message.mode)}` : "" }).then(sendResponse, error => sendResponse({ ok: false, error: error?.message || "background_error" }));
     return true;
   }
 
   if (message?.type === "ZILI_TRANSLATE_VIDEO_CUES") {
-    translateVideoCues(message).then(sendResponse);
+    translateVideoCues(message).then(sendResponse, error => sendResponse({ ok: false, error: error?.message || "background_error" }));
     return true;
   }
 
   if (message?.type === "ZILI_PAGE_FILTER") {
-    filterPageItems(message).then(sendResponse);
+    filterPageItems(message).then(sendResponse, error => sendResponse({ ok: false, error: error?.message || "background_error" }));
     return true;
   }
 
   if (message?.type === "ANALYZE_SCREENSHOT") {
-    analyzeScreenshot({ ...message, platformHost: senderHost(sender) }).then(sendResponse);
+    analyzeScreenshot({ ...message, platformHost: senderHost(sender) }).then(sendResponse, error => sendResponse({ ok: false, error: error?.message || "background_error" }));
     return true;
   }
 
