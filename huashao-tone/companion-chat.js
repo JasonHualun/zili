@@ -155,7 +155,7 @@
       finally{panel.querySelectorAll('[data-tool]').forEach(b=>{b.disabled=false;});renderTools();position();}
     }
     async function open(view='chat') {
-      const resultTab=q('[data-view="result"]');resultTab.hidden=!api.hasResult?.();resultTab.textContent=api.resultLabel?.()||'当前结果';
+      const resultTab=q('[data-view="result"]');resultTab.hidden=!api.hasResult?.();
       panel.hidden=false;setView(view);
       try {
         const {settings}=await request({type:'GET_SETTINGS'});
