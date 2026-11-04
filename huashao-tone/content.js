@@ -2267,7 +2267,15 @@
     showStatus("已恢复润色前的内容");
   }
 
+  // 小红书编辑器把 [笑哭R] 这类表情码转成表情图时，会顺带吃掉表情码前面的一个字（“有点东西[笑哭R]”变成“有点东[表情]”）。
+  // 写进去之前在表情码前垫一个空格，被吃掉的是空格，字不会少。
+  function protectPlatformEmoji(text) {
+    if (!/(^|\.)xiaohongshu\.com$/.test(location.hostname)) return text;
+    return String(text).replace(/([^\s\[\]])(\[[\u4e00-\u9fffA-Za-z]{1,6}R\]|\[doge\])/g, "$1 $2");
+  }
+
   function replaceComposer(text, options = {}) {
+    text = protectPlatformEmoji(text);
     const element = findLiveComposer(options.composer || state.activeComposer, options.expectedText || "");
     if (!element?.isConnected) return false;
     state.activeComposer = element;
