@@ -75,11 +75,48 @@
     }
   }
 
-  function visibleVideo() {
-    return Array.from(document.querySelectorAll("video"))
+  function largestVisible(elements) {
+    return Array.from(elements)
       .map(item => ({ item, rect: item.getBoundingClientRect() }))
       .filter(({ rect }) => rect.width > 180 && rect.height > 100 && rect.bottom > 0 && rect.top < innerHeight)
       .sort((a, b) => b.rect.width * b.rect.height - a.rect.width * a.rect.height)[0]?.item || null;
+  }
+
+  // Embedded players (Bunny, Vimeo, Wistia…) keep the <video> inside a cross-origin iframe we
+  // cannot read. Such pages often show a synced transcript beside the player instead.
+  const PLAYER_IFRAME = 'iframe[allowfullscreen], iframe[allow*="fullscreen" i], iframe[src*="embed" i], iframe[src*="player" i], iframe[src*="video" i]';
+  const TRANSCRIPT_ITEM = ':is([class*="transcript" i], [id*="transcript" i]) :is(li, [role="listitem"], [data-start], [data-time])';
+  const ACTIVE_ITEM = ':is(.on, .active, .current, .is-active, .is-current, .highlighted, [aria-current="true"], [aria-current="time"])';
+
+  function visibleVideo() {
+    return largestVisible(document.querySelectorAll("video"))
+      || (activeTranscriptItem(true) ? largestVisible(document.querySelectorAll(PLAYER_IFRAME)) : null);
+  }
+
+  function activeTranscriptItem(anyItem = false) {
+    const active = document.querySelector(`${TRANSCRIPT_ITEM}${ACTIVE_ITEM}`);
+    return active || (anyItem ? document.querySelector(TRANSCRIPT_ITEM) : null);
+  }
+
+  function transcriptText(item) {
+    if (!item) return "";
+    const copy = item.cloneNode(true);
+    copy.querySelectorAll('[class*="translat" i], [data-translation], font').forEach(node => node.remove());
+    copy.querySelectorAll("*").forEach(node => {
+      if (/^\s*\d{1,2}(?::\d{2}){1,2}\s*$/.test(node.textContent || "")) node.remove();
+    });
+    return ZiliVideoText.cleanCue(String(copy.textContent || "").replace(/^\s*\d{1,2}(?::\d{2}){1,2}\s*/, ""));
+  }
+
+  function upcomingTranscript(count) {
+    const texts = [];
+    let node = activeTranscriptItem()?.nextElementSibling;
+    while (node && texts.length < count) {
+      const text = transcriptText(node);
+      if (text) texts.push(text);
+      node = node.nextElementSibling;
+    }
+    return texts;
   }
 
   function restoreTrack() {
@@ -130,6 +167,7 @@
     chooseTrack();
     const activeCues = Array.from(track?.activeCues || []);
     const trackText = ZiliVideoText.cleanCue(activeCues.map(cue => cue.text).join(" "));
+    if (video?.tagName === "IFRAME") return transcriptText(activeTranscriptItem());
     return trackText || domCaption();
   }
 
@@ -196,7 +234,8 @@
     if (!active || inFlightSession === sessionId || Date.now() - lastFailureAt < 5000) return;
     if (youtubeVideoId && !youtubeCues.length) return;
     const cueSource = youtubeCues.length ? youtubeCues : track?.cues;
-    const upcoming = ZiliVideoText.upcomingCues(cueSource, video?.currentTime, 45, 8);
+    const upcoming = video?.tagName === "IFRAME" ? upcomingTranscript(7)
+      : ZiliVideoText.upcomingCues(cueSource, video?.currentTime, 45, 8);
     const batch = [currentText, ...upcoming].filter((text, index, list) =>
       text && !translations.has(text) && list.indexOf(text) === index
     ).slice(0, singleCueFallback ? 1 : 8);
