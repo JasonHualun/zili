@@ -2472,7 +2472,9 @@
     if (!composer || !getText(composer).trim()) return { ok: false, error: "先在输入框里写点内容，再让我改" };
     if (!ZiliFeatureGates.allowsManualRewrite(state.settings)) return { ok: false, error: "润色功能在设置里关着，先打开再试" };
     const length = ["short", "medium", "long"].includes(request.length) ? request.length : state.rewriteLength;
-    void optimizeRewrite(true, composer, { manualTrigger: true, mode: "rewrite", lengthTier: state.manualLength, rewriteLength: length, instruction: request.instruction || "", directApply: true });
+    // 要改标题时让写作流程顺手起标题（第一行“标题：”），它带着口吻和去 AI 味要求，比对话里单独起的好；没起就用对话给的备用标题。
+    const chatTitle = request.wantsTitle ? { fallback: String(request.title || "").trim(), fromBody: "" } : null;
+    void optimizeRewrite(true, composer, { manualTrigger: true, mode: "rewrite", lengthTier: state.manualLength, rewriteLength: length, instruction: request.instruction || "", directApply: true, chatTitle });
     return { ok: true };
   }
 
@@ -2741,6 +2743,16 @@
         ? "还没看出你想往哪个方向写，再补几个关键词吧"
         : "这句话的意思还没收住，我先不动");
       return;
+    }
+    // 模型有时在正文开头带一行“标题：……”。正文里不该有标题：拿出来，对话里要过改标题就放进标题框，否则丢掉。
+    const titleLine = String(response.output || "").match(/^\s*(?:#+\s*)?(?:\*\*)?标题(?:\*\*)?\s*[:：]\s*(.+?)\s*(?:\n+|$)/);
+    if (titleLine) {
+      response.output = response.output.slice(titleLine[0].length).trim();
+      if (options.chatTitle) options.chatTitle.fromBody = titleLine[1].replace(/^["“《]|["”》]$/g, "").trim();
+    }
+    if (options.chatTitle) {
+      const newTitle = options.chatTitle.fromBody || options.chatTitle.fallback;
+      if (newTitle) editComposerFromChat({ title: newTitle });
     }
     if (!response.output || response.output.trim() === text.trim()) {
       showStatus("这句已经很自然，不用硬改");

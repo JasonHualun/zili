@@ -212,8 +212,7 @@
       if(action.type==='restore_text'){const r=api.restoreText?.();return r?.ok?'已恢复原文':(r?.error||'没有可以恢复的原文');}
       // 重写正文：标题（若有）在这里直接改，正文交给字里的写作流程，写好后直接替换正文。
       if(action.type==='rewrite'){
-        if(action.title){const t=api.editText?.({title:action.title});if(!t?.ok)status(t?.error||'标题没改成');}
-        const r=api.polish?.({instruction:action.instruction,length:action.length});
+        const r=api.polish?.({instruction:action.instruction,length:action.length,wantsTitle:Boolean(action.wantsTitle),title:action.title||''});
         if(!r?.ok)return r?.error||'这一页没找到正文框';
         close();
         return '';
