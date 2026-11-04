@@ -515,7 +515,7 @@
   const PLATFORM_EMOJI = {
     xiaohongshu: {
       label: "小红书",
-      codes: "[笑哭R] [哭惹R] [赞R] [doge] [偷笑R] [害羞R] [捂脸R] [萌萌哒R] [哇R] [飞吻R] [心心眼R] [派对R] [吃瓜R] [种草R] [拔草R] [买爆R] [蹲后续R] [暗中观察R] [黑薯问号R] [石化R] [失望R] [皱眉R] [生气R] [叹气R] [汗颜R] [尬住R]"
+      codes: "[笑哭R] [哭惹R] [赞R] [doge] [偷笑R] [害羞R] [萌萌哒R] [哇R] [飞吻R] [派对R] [吃瓜R] [买爆R] [暗中观察R] [黑薯问号R] [石化R] [失望R] [皱眉R] [生气R] [叹气R] [汗颜R]"
     },
     bilibili: {
       label: "B站",

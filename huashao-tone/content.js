@@ -2275,6 +2275,29 @@
     return String(text).replace(/([^\s\[\]])(\[[\u4e00-\u9fffA-Za-z]{1,6}R\]|\[doge\])/g, "$1 $2");
   }
 
+  // 模型偶尔会编一个小红书不认的表情码（如 [蹲后续R]），编辑器不转换，就以文字留在正文里。
+  // 写完稍等一下看看：还以文字留着的表情码，整段重写一遍把它们去掉。用户这期间动过就不碰。
+  function dropUnknownPlatformEmoji(element, appliedText) {
+    if (!/(^|\.)xiaohongshu\.com$/.test(location.hostname)) return;
+    const codes = [...new Set(String(appliedText).match(/\[[\u4e00-\u9fffA-Za-z]{1,6}R\]/g) || [])];
+    if (!codes.length) return;
+    setTimeout(() => {
+      if (!element.isConnected || state.lastAppliedText !== appliedText) return;
+      const leftover = codes.filter(code => getText(element).includes(code));
+      if (!leftover.length) return;
+      const cleaned = leftover.reduce((text, code) => text.split(` ${code}`).join("").split(code).join(""), appliedText).trim();
+      state.suppressInput = true;
+      state.draftWrittenAt = Date.now();
+      if (ZiliWriteback.replace(element, cleaned).ok) {
+        state.lastAppliedText = cleaned;
+        state.lastSourceText = cleaned;
+        state.rewriteGuard.recordWritten(element, cleaned);
+        if (state.rewriteUndo?.composer === element) state.rewriteUndo.appliedText = cleaned;
+      }
+      queueMicrotask(() => { state.suppressInput = false; });
+    }, 600);
+  }
+
   function replaceComposer(text, options = {}) {
     text = protectPlatformEmoji(text);
     const element = findLiveComposer(options.composer || state.activeComposer, options.expectedText || "");
@@ -2308,6 +2331,7 @@
       state.suppressInput = false;
     });
     queueMicrotask(() => verifySingleWrite(element, appliedText));
+    dropUnknownPlatformEmoji(element, appliedText);
     requestAnimationFrame(() => verifySingleWrite(element, appliedText));
     setTimeout(() => verifySingleWrite(element, appliedText), 180);
     if (!options.silent) {
