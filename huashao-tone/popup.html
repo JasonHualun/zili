@@ -82,19 +82,20 @@
               <label>长度 <output id="length-value"></output><input id="length" type="range" min="0" max="100"><span class="range-hints"><span>简约</span><span>话痨</span></span></label>
             </div>
             <div id="profile-assistant" class="profile-block">
-              <div class="profile-mode-switch" role="tablist" aria-label="选择口吻档案方式">
-                <button id="profileModeWizard" class="profile-mode-button is-selected" data-profile-mode="wizard" type="button">建立我的表达</button>
-                <button id="profileModePaste" class="profile-mode-button" data-profile-mode="paste" type="button">直接粘贴样例</button>
-                <button id="profileCollapse" class="icon-button" type="button" aria-label="收起" title="收起" hidden><svg class="ri" aria-hidden="true"><use href="assets/remixicon-sprite.svg#ri-close-line"/></svg></button>
-              </div>
               <p id="profile-assistant-state" class="profile-state" role="status" aria-live="polite"></p>
 
+              <div id="profilePastePanel" class="profile-panel">
+                <textarea id="reference" rows="6" maxlength="2400" aria-label="我的口吻档案" placeholder="点下面“一步步设置口吻”回答几个问题自动生成；也可以直接粘贴你写过的话"></textarea>
+                <div class="pair-actions"><button id="profileModeWizard" class="secondary" type="button">一步步设置口吻</button><button id="profileSavePaste" class="primary" type="button">保存</button></div>
+                <p id="profilePasteState" class="profile-paste-state" role="status" aria-live="polite"></p>
+              </div>
+
               <div id="profileWizardPanel" class="profile-panel" hidden>
-                <div class="profile-progress-row"><span id="profileProgress">场景 1 / 6</span><span id="profileDraftState"></span></div>
+                <div class="profile-progress-row"><span id="profileProgress">问题 1 / 10</span><button id="profileCollapse" class="link-button" type="button">返回</button></div>
                 <div id="profileQuestionBlock" class="profile-question-block">
                   <p id="profileQuestion" class="profile-question"></p>
-                  <p id="profileExample" class="profile-example"></p>
-                  <textarea id="profileAnswer" rows="3" maxlength="360" placeholder="写你真实会说的话"></textarea>
+                  <button id="profileExample" class="profile-example" type="button" title="点一下直接用这个参考"></button>
+                  <textarea id="profileAnswer" rows="3" maxlength="200" placeholder="写你真实会说的话，没有就照参考改一改"></textarea>
                   <p id="profileAnswerState" class="profile-answer-state" role="status" aria-live="polite"></p>
                 </div>
                 <div class="pair-actions">
@@ -103,15 +104,6 @@
                 </div>
 
                 <div id="profileFinishPanel" class="profile-finish-panel" hidden>
-                  <p id="profileAnswerSummary" class="profile-answer-summary"></p>
-                  <details class="profile-optional-details">
-                    <summary>补充 2 题</summary>
-                    <div class="profile-optional-fields">
-                      <label>常用的开头或收尾<textarea id="profileExtraPhrase" rows="2" maxlength="240" placeholder="先说结论 / 做了才知道"></textarea></label>
-                      <label>不想出现的说法<textarea id="profileExtraAvoid" rows="2" maxlength="240" placeholder="总的来说 / 综上所述"></textarea></label>
-                    </div>
-                  </details>
-
                   <div class="profile-preference-grid">
                     <label>标点<select id="profilePunctuation">
                       <option value="noPeriods">不加句号</option>
@@ -126,36 +118,10 @@
                       <option value="adaptive">看场景</option>
                     </select></label>
                   </div>
-                  <div id="profileEmojiFavorites" class="profile-emoji-grid" role="group" aria-label="常用 emoji">
-                    <button type="button" data-emoji="🙂">🙂</button>
-                    <button type="button" data-emoji="😂">😂</button>
-                    <button type="button" data-emoji="😅">😅</button>
-                    <button type="button" data-emoji="🤔">🤔</button>
-                    <button type="button" data-emoji="👍">👍</button>
-                    <button type="button" data-emoji="🙌">🙌</button>
-                    <button type="button" data-emoji="❤️">❤️</button>
-                    <button type="button" data-emoji="😭">😭</button>
-                  </div>
-
-                  <div id="profileCandidatePreview" class="profile-candidate-preview" aria-label="候选档案预览"></div>
-                  <textarea id="profileTrialText" rows="2" maxlength="1000" aria-label="试写" placeholder="试写一句，看看像不像你"></textarea>
-                  <div class="pair-actions"><button id="profileTrial" class="secondary" type="button">试写</button><span id="profileTrialUsage" class="usage"></span></div>
-                  <p id="profileTrialResult" class="profile-trial-result" role="status" aria-live="polite"></p>
+                  <p id="profileAnswerSummary" class="profile-answer-summary"></p>
+                  <div id="profileCandidatePreview" class="profile-candidate-preview" aria-label="档案预览"></div>
                   <div class="pair-actions"><button id="profileRestart" class="secondary" type="button">重新回答</button><button id="profileSave" class="primary" type="button">保存档案</button></div>
                 </div>
-              </div>
-
-              <div id="profilePastePanel" class="profile-panel" hidden>
-                <textarea id="reference" rows="5" maxlength="2400" aria-label="我的口吻样例" placeholder="粘贴你以前写过的话，多段之间空一行"></textarea>
-                <button id="profileSavePaste" class="primary block" type="button">保存样例</button>
-                <div class="profile-remember-row">
-                  <input id="profileSampleContext" type="text" maxlength="80" aria-label="样例场景" placeholder="场景，如：社交回复">
-                  <button id="profileRememberSample" class="secondary" type="button">记住</button>
-                </div>
-                <p id="profilePasteState" class="profile-paste-state" role="status" aria-live="polite"></p>
-                <div class="profile-samples-head"><strong>已记住</strong><button id="profileRefreshSamples" class="icon-button" type="button" aria-label="刷新" title="刷新"><svg class="ri" aria-hidden="true"><use href="assets/remixicon-sprite.svg#ri-refresh-line"/></svg></button></div>
-                <div id="profileSampleList" class="profile-sample-list"></div>
-                <p id="profileSamplesState" class="profile-samples-state" role="status" aria-live="polite"></p>
               </div>
             </div>
           </div>

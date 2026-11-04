@@ -2,12 +2,12 @@
   "use strict";
 
   const STORAGE_KEYS = {
-    wizard: "ziliProfileWizardDraftV2",
+    wizard: "ziliProfileWizardDraftV3",
     chat: "ziliAssistantChatV1",
     nudge: "ziliProfileNudgeShownV1"
   };
-  const MAX_ANSWER_LENGTH = 360;
-  const MAX_PROFILE_SCENE_LENGTH = 360;
+  const MAX_ANSWER_LENGTH = 200;
+  const MAX_PROFILE_SCENE_LENGTH = 180;
   const MAX_PROFILE_EXTRA_LENGTH = 240;
   const MAX_REFERENCE_LENGTH = 2400;
   const MAX_CHAT_MESSAGES = 24;
@@ -57,43 +57,19 @@
     calm: "稳一点说",
     playful: "轻松一点"
   };
+  // 引导问题照作者本人当初逐题确认口吻的方式设计：每题一个真实场景，参考答案就是作者自己的说法，
+  // 新用户可以照着改成自己的，也可以点参考直接用，答完就得到一份同样结构的口吻档案。
   const SCENES = [
-    {
-      id: "agree",
-      label: "认同",
-      question: "别人说到你也认可的点时，你通常会怎么回？",
-      example: "确实，这个点我也这么想"
-    },
-    {
-      id: "surprise",
-      label: "惊喜",
-      question: "看到一个有意思或意外的东西，你会怎么说？",
-      example: "有点东西，我得试一下"
-    },
-    {
-      id: "disagree",
-      label: "不同意",
-      question: "你不太同意时，通常会怎样表达？",
-      example: "我不太认同，还是得看实际情况"
-    },
-    {
-      id: "learn",
-      label: "求知",
-      question: "你真想学会或弄明白时，会怎么问？",
-      example: "这个具体怎么做，和普通方法差在哪"
-    },
-    {
-      id: "comfort",
-      label: "安慰",
-      question: "对方翻车或有点沮丧时，你会怎么安慰？",
-      example: "先别急，至少现在知道问题在哪了"
-    },
-    {
-      id: "opinion",
-      label: "观点",
-      question: "你想表达自己的判断时，常怎么开头或收尾？",
-      example: "我更倾向于这样看，关键还是实际效果"
-    }
+    { id: "lightAgree", label: "轻认同", question: "别人说的你觉得还行，你一般怎么回？", example: "这可以 / 这个不错" },
+    { id: "strongAgree", label: "强认同", question: "特别认同、觉得很对的时候，你会怎么说？", example: "太行 / 太可以了" },
+    { id: "confirm", label: "说中了", question: "对方说中了你的意思，你怎么接？", example: "确实 是这意思" },
+    { id: "praise", label: "夸人和惊喜", question: "看到意外的好东西，或别人做得好，你会怎么说？", example: "有点东西 我怎么没想到呢 什么时候开源 我试试看" },
+    { id: "doubt", label: "不太认同", question: "不太同意对方时，你通常怎么开口？", example: "是这样吗 真的吗" },
+    { id: "challenged", label: "被质疑", question: "别人质疑你、觉得你不行时，你怎么回？", example: "确实 想法算不算 你可以试一下 还是有点不一样" },
+    { id: "learn", label: "请教", question: "真想弄明白又听不懂时，你会怎么问？", example: "有点东西 感谢大佬 这个是干嘛的" },
+    { id: "funny", label: "好笑和安慰", question: "看到好笑的事，或对方翻车了，你会怎么说？", example: "笑死 / 哈哈哈哈 辛苦了 也是一种进步" },
+    { id: "words", label: "用词习惯", question: "打字时常用、和绝对不用的词有哪些？方言也算", example: "常用：这样子 有没有 啥 我们；不用：咱们 咋整" },
+    { id: "addressEmoji", label: "称呼和表情", question: "你怎么称呼别人？常用哪些表情，分别是什么意思？", example: "一般不加称呼 熟人叫兄弟；常用 😂 😭 👍，🙂 是呵呵的意思" }
   ];
 
   const state = {
@@ -298,12 +274,6 @@
     elements.pasteState.className = isError ? "profile-paste-state is-error" : "profile-paste-state";
   }
 
-  function setSamplesNotice(text, isError = false) {
-    if (!elements?.samplesState) return;
-    elements.samplesState.textContent = String(text || "");
-    elements.samplesState.className = isError ? "profile-samples-state is-error" : "profile-samples-state";
-  }
-
   function queueDraftSave() {
     clearTimeout(draftTimer);
     draftTimer = setTimeout(() => {
@@ -340,45 +310,24 @@
 
   function buildCandidateProfile() {
     if (SCENES.some(scene => !cleanAnswer(state.answers[scene.id]))) return "";
-    const lines = [
-      "【个人表达档案 v1】",
-      "【六类场景回答】"
-    ];
+    const lines = ["【个人口吻档案】"];
     for (const scene of SCENES) {
       lines.push(`${scene.label}：${cleanAnswer(state.answers[scene.id], MAX_PROFILE_SCENE_LENGTH)}`);
     }
-    const extraPhrase = cleanAnswer(state.extraPhrase, MAX_PROFILE_EXTRA_LENGTH);
-    const extraAvoid = cleanAnswer(state.extraAvoid, MAX_PROFILE_EXTRA_LENGTH);
-    if (extraPhrase || extraAvoid) {
-      lines.push("【可选补充】");
-      if (extraPhrase) lines.push(`常用开头或收尾：${extraPhrase}`);
-      if (extraAvoid) lines.push(`不想出现：${extraAvoid}`);
-    }
     lines.push(
-      "【表达偏好】",
-      `标点：${state.punctuation}`,
-      `表情：${state.emoji}`,
-      `常用 emoji（用户确认）：${state.emojiFavorites.join(" ") || "无"}`,
-      "【使用边界】",
-      "只学习句长、词序、口语节奏、标点、表情和判断方式；不照抄整句，不继承回答里的事实与身份。",
-      "【表达档案结束】"
+      `标点：${PUNCTUATION_LABELS[state.punctuation] || "看场景"}`,
+      `表情：${EMOJI_LABELS[state.emoji] || "看场景"}`,
+      "【使用边界】一条回复只用一个主要反应，按场景挑上面的说法，不每句都塞口头词，不照抄整句，不编造事实和经历；不用空预告、空喊重点和工整对照这类 AI 句式。"
     );
     return lines.join("\n");
   }
 
-  function renderEmojiFavorites() {
-    elements.emojiFavorites?.querySelectorAll("[data-emoji]").forEach(button => {
-      button.classList.toggle("is-selected", state.emojiFavorites.includes(button.dataset.emoji));
-      button.setAttribute("aria-pressed", state.emojiFavorites.includes(button.dataset.emoji) ? "true" : "false");
-    });
-  }
-
   function renderCandidate() {
     const candidate = buildCandidateProfile();
-    if (elements.candidatePreview) elements.candidatePreview.textContent = candidate || "答完 6 个场景后，这里会出现候选档案";
+    if (elements.candidatePreview) elements.candidatePreview.textContent = candidate || "答完所有问题后，这里会出现口吻档案";
     if (elements.answerSummary) {
       const count = SCENES.filter(scene => cleanAnswer(state.answers[scene.id])).length;
-      elements.answerSummary.textContent = `已完成 ${count} / ${SCENES.length} 个场景。每个场景都用你自己的话，字里只整理表达习惯。`;
+      elements.answerSummary.textContent = `已答 ${count} / ${SCENES.length} 题。保存后会替换当前的口吻档案。`;
     }
     return candidate;
   }
@@ -386,9 +335,8 @@
   function renderWizard() {
     const finished = state.sceneIndex >= SCENES.length;
     elements.profileProgress.textContent = finished
-      ? "场景回答完成"
-      : `场景 ${state.sceneIndex + 1} / ${SCENES.length}`;
-    elements.profileDraftState.textContent = "逐题本地暂存";
+      ? "都答完了，看一眼再保存"
+      : `问题 ${state.sceneIndex + 1} / ${SCENES.length}`;
     elements.questionBlock.hidden = finished;
     elements.finishPanel.hidden = !finished;
     elements.profileBack.disabled = state.sceneIndex <= 0;
@@ -396,42 +344,33 @@
     if (!finished) {
       const scene = SCENES[state.sceneIndex];
       elements.profileQuestion.textContent = scene.question;
-      elements.profileExample.textContent = scene.example;
+      elements.profileExample.textContent = `参考：${scene.example}`;
       elements.profileAnswer.value = state.answers[scene.id] || "";
       elements.profileAnswerState.textContent = state.answerNotice;
       elements.profileAnswerState.className = state.answerNotice ? "profile-answer-state is-error" : "profile-answer-state";
     } else {
       elements.profileBack.textContent = "回到上一题";
       elements.answerSummary.textContent = "";
-      elements.extraPhrase.value = state.extraPhrase;
-      elements.extraAvoid.value = state.extraAvoid;
       elements.punctuation.value = state.punctuation;
       elements.emoji.value = state.emoji;
       renderCandidate();
-      renderEmojiFavorites();
     }
     if (!finished) elements.profileBack.textContent = "上一题";
     setProfileNotice(state.profileNotice, state.profileNoticeError);
   }
 
+  // 口吻只有一个窗口：平时显示当前档案（可直接改或粘贴），点“一步步设置口吻”切到引导问答，答完保存再回来。
   function renderMode() {
     const wizard = state.profileStarted && state.mode === "wizard";
-    const paste = state.profileStarted && state.mode === "paste";
     elements.wizardPanel.hidden = !wizard;
-    elements.pastePanel.hidden = !paste;
-    elements.profileAssistant.classList.toggle("is-profile-open", state.profileStarted);
-    elements.modeWizard.textContent = state.hasSavedProfile ? "修改表达" : "建立我的表达";
-    elements.modePaste.textContent = state.hasSavedProfile ? "补充样例并分析" : "直接粘贴样例";
-    elements.profileCollapse.hidden = !state.profileStarted;
-    elements.modeWizard.classList.toggle("is-selected", state.mode === "wizard");
-    elements.modePaste.classList.toggle("is-selected", state.mode === "paste");
-    elements.modeWizard.setAttribute("aria-selected", state.mode === "wizard" ? "true" : "false");
-    elements.modePaste.setAttribute("aria-selected", state.mode === "paste" ? "true" : "false");
+    elements.pastePanel.hidden = wizard;
+    elements.profileAssistant.classList.toggle("is-profile-open", wizard);
+    elements.modeWizard.textContent = state.hasSavedProfile ? "重新一步步设置" : "一步步设置口吻";
   }
 
   function setMode(mode) {
     state.mode = mode === "paste" ? "paste" : "wizard";
-    state.profileStarted = true;
+    state.profileStarted = state.mode === "wizard";
     const disclosure = elements.profileAssistant?.closest("details");
     if (disclosure) disclosure.open = true;
     renderMode();
@@ -439,19 +378,18 @@
       renderWizard();
       elements.profileAnswer?.focus();
     } else {
-      if (!state.samplesLoaded) void loadSamples();
       elements.reference?.focus();
     }
   }
 
   function openWizard() {
-    setMode(state.hasSavedProfile ? "paste" : "wizard");
+    setMode("wizard");
     elements.profileAssistant?.scrollIntoView({ block: "nearest" });
   }
 
   function collapseProfile() {
     state.profileStarted = false;
-    state.mode = state.hasSavedProfile ? "paste" : "wizard";
+    state.mode = "paste";
     renderMode();
   }
 
@@ -495,21 +433,13 @@
     state.trialError = false;
     void storageRemove(STORAGE_KEYS.wizard);
     renderWizard();
-    setProfileNotice("可以重新从第 1 个场景开始");
-  }
-
-  function mergeIntoExistingReference(existing, candidate) {
-    if (typeof global.ZiliVoiceProfile?.mergeProfile === "function") {
-      return global.ZiliVoiceProfile.mergeProfile(existing, candidate);
-    }
-    const source = trimText(existing, MAX_REFERENCE_LENGTH);
-    return [candidate, source].filter(Boolean).join("\n\n").slice(0, MAX_REFERENCE_LENGTH);
+    setProfileNotice("可以重新从第 1 题开始");
   }
 
   async function saveProfile() {
     const candidate = buildCandidateProfile();
     if (!candidate) {
-      setProfileNotice("6 个场景都要各写一句；可选补充题不影响保存", true);
+      setProfileNotice("每道题都要写一句才能保存", true);
       return;
     }
     state.profileBusy = true;
@@ -522,18 +452,11 @@
       setProfileNotice("没有读到最新设置，档案没有保存", true);
       return;
     }
-    const reference = mergeIntoExistingReference(String(current.reference || ""), candidate);
-    if (reference.length > MAX_REFERENCE_LENGTH) {
-      state.profileBusy = false;
-      elements.profileSave.disabled = false;
-      setProfileNotice("新档案加原有样例超过 2400 字，请先在“直接粘贴样例”整理旧内容后再保存；原资料没有修改", true);
-      return;
-    }
+    const reference = candidate.slice(0, MAX_REFERENCE_LENGTH);
     const patch = {
       reference,
       punctuation: state.punctuation,
-      emoji: state.emoji,
-      emojiFavorites: state.emojiFavorites.join(" ")
+      emoji: state.emoji
     };
     const response = await saveSettings(patch, { source: "profile" });
     state.profileBusy = false;
@@ -543,159 +466,28 @@
       return;
     }
     await storageRemove(STORAGE_KEYS.wizard);
-    setProfileNotice("表达档案已建立，原来的口吻样例也保留了");
-    state.trialResult = "";
-    state.trialUsage = "";
     if (response.settings) applySettingsPreferences(response.settings);
     else state.hasSavedProfile = true;
-    state.profileStarted = false;
-    state.mode = "paste";
-    renderMode();
-    renderCandidate();
-  }
-
-  function trialErrorLabel(response) {
-    const error = String(response?.error || "");
-    if (/model_key_missing|key_missing/i.test(error)) return "先在“大模型接口”里保存 API Key，再试写";
-    if (/runtime|message_port|empty_response/i.test(error)) return "后台暂时没有响应，请重开弹窗后再试";
-    if (/timeout/i.test(error)) return "模型响应超时，请再试一次";
-    return "试写没有成功，请稍后再试";
-  }
-
-  async function trialProfile() {
-    const candidate = buildCandidateProfile();
-    const text = trimText(elements.trialText.value, 1000);
-    if (!candidate) {
-      elements.trialResult.textContent = "先完成 6 个场景，才能用候选档案试写";
-      elements.trialResult.className = "profile-trial-result is-error";
-      return;
-    }
-    if (!text) {
-      elements.trialResult.textContent = "先写一段想让字里回应的话";
-      elements.trialResult.className = "profile-trial-result is-error";
-      elements.trialText.focus();
-      return;
-    }
-    const status = await getEngineStatus();
-    if (!engineIsReady(status)) {
-      elements.trialResult.textContent = "还没有可用的模型配置，先去“大模型接口”保存并检查 API";
-      elements.trialResult.className = "profile-trial-result is-error";
-      return;
-    }
-    state.trialBusy = true;
-    elements.trialButton.disabled = true;
-    elements.trialResult.className = "profile-trial-result";
-    elements.trialResult.textContent = "正在试写…";
-    elements.trialUsage.textContent = "";
-    const response = await runtimeSend({
-      type: "ZILI_ASSIST",
-      action: "trial",
-      text,
-      profile: candidate
-    });
-    state.trialBusy = false;
-    elements.trialButton.disabled = false;
-    if (!response?.ok || typeof response.text !== "string") {
-      elements.trialResult.textContent = trialErrorLabel(response);
-      elements.trialResult.className = "profile-trial-result is-error";
-      return;
-    }
-    elements.trialResult.textContent = response.text;
-    elements.trialResult.className = "profile-trial-result";
-    elements.trialUsage.textContent = usageLabel(response.usage);
-  }
-
-  function normalizeSample(sample, index) {
-    if (!isPlainObject(sample)) return null;
-    const text = trimText(sample.text, MAX_REFERENCE_LENGTH);
-    if (!text) return null;
-    return {
-      id: trimText(sample.id || `sample-${index + 1}`, 100),
-      context: trimText(sample.context || "未分类", 80),
-      text
-    };
-  }
-
-  function renderSamples() {
-    elements.sampleList.replaceChildren();
-    if (!state.samples.length) {
-      setSamplesNotice("还没有已记住的样例");
-      return;
-    }
-    for (const sample of state.samples) {
-      const row = document.createElement("div");
-      row.className = "profile-sample-row";
-      const copy = document.createElement("div");
-      copy.className = "profile-sample-copy";
-      const context = document.createElement("span");
-      context.className = "profile-sample-context";
-      context.textContent = sample.context;
-      const text = document.createElement("span");
-      text.className = "profile-sample-text";
-      text.textContent = sample.text;
-      copy.append(context, text);
-      const actions = document.createElement("div");
-      actions.className = "profile-sample-actions";
-      const useButton = document.createElement("button");
-      useButton.type = "button";
-      useButton.textContent = "使用";
-      useButton.addEventListener("click", () => {
-        elements.reference.value = sample.text;
-        setPasteNotice("样例已放入上方文本框，确认后再保存");
-        elements.reference.focus();
-      });
-      const deleteButton = document.createElement("button");
-      deleteButton.type = "button";
-      deleteButton.textContent = "删除";
-      deleteButton.addEventListener("click", () => void deleteSample(sample, deleteButton));
-      actions.append(useButton, deleteButton);
-      row.append(copy, actions);
-      elements.sampleList.appendChild(row);
-    }
-    setSamplesNotice(`已记住 ${state.samples.length} 条样例`);
-  }
-
-  async function loadSamples() {
-    state.samplesLoaded = true;
-    setSamplesNotice("正在读取本机样例…");
-    const response = await runtimeSend({ type: "ZILI_PROFILE_LIST" });
-    if (!response?.ok) {
-      setSamplesNotice("暂时读不到已记住的样例，稍后可刷新重试", true);
-      return;
-    }
-    state.samples = (Array.isArray(response.samples) ? response.samples : [])
-      .map(normalizeSample)
-      .filter(Boolean)
-      .slice(0, MAX_SAMPLES);
-    renderSamples();
-  }
-
-  async function deleteSample(sample, button) {
-    if (!sample?.id) return;
-    button.disabled = true;
-    const response = await runtimeSend({ type: "ZILI_PROFILE_DELETE", id: sample.id });
-    if (!response?.ok) {
-      button.disabled = false;
-      setSamplesNotice("样例没有删除成功，请重试", true);
-      return;
-    }
-    state.samples = state.samples.filter(item => item.id !== sample.id);
-    renderSamples();
+    elements.reference.value = response.settings?.reference || reference;
+    setProfileNotice(`已保存口吻档案 ${elements.reference.value.trim().length} 字，下面可以直接改`);
+    state.sceneIndex = 0;
+    state.answers = {};
+    collapseProfile();
   }
 
   async function savePasteReference() {
     const reference = trimText(elements.reference.value, MAX_REFERENCE_LENGTH);
     if (!reference) {
-      setPasteNotice("先粘贴一段你真实写过的话", true);
+      setPasteNotice("先写或粘贴一段口吻内容", true);
       elements.reference.focus();
       return;
     }
     elements.savePaste.disabled = true;
-    setPasteNotice("正在保存样例…");
+    setPasteNotice("正在保存…");
     const response = await saveSettings({ reference }, { source: "paste" });
     elements.savePaste.disabled = false;
     if (!response?.ok) {
-      setPasteNotice("样例没有保存成功，请重试", true);
+      setPasteNotice("没有保存成功，请重试", true);
       return;
     }
     elements.reference.value = response.settings?.reference || reference;
@@ -704,30 +496,8 @@
     state.profileStarted = false;
     state.mode = "paste";
     renderMode();
-    setProfileNotice("表达档案已建立，可随时补充样例让它更准");
-  }
-
-  async function rememberSample() {
-    const text = trimText(elements.reference.value, MAX_REFERENCE_LENGTH);
-    if (!text) {
-      setPasteNotice("先粘贴一段样例，再记住它", true);
-      elements.reference.focus();
-      return;
-    }
-    elements.rememberSample.disabled = true;
-    setPasteNotice("正在记住样例…");
-    const response = await runtimeSend({
-      type: "ZILI_PROFILE_SAVE",
-      context: trimText(elements.sampleContext.value, 80) || "未分类",
-      text
-    });
-    elements.rememberSample.disabled = false;
-    if (!response?.ok) {
-      setPasteNotice("样例没有记住成功，请重试", true);
-      return;
-    }
-    setPasteNotice("已记住这条样例");
-    await loadSamples();
+    setPasteNotice("");
+    setProfileNotice(`已保存口吻档案 ${elements.reference.value.trim().length} 字`);
   }
 
   function normalizeChat(value) {
@@ -1109,48 +879,37 @@
 
   function bindEvents() {
     elements.modeWizard.addEventListener("click", () => setMode("wizard"));
-    elements.modePaste.addEventListener("click", () => setMode("paste"));
     elements.profileCollapse.addEventListener("click", collapseProfile);
     elements.profileNext.addEventListener("click", handleNext);
     elements.profileBack.addEventListener("click", handleBack);
+    elements.profileExample.addEventListener("click", () => {
+      const scene = SCENES[state.sceneIndex];
+      if (!scene) return;
+      elements.profileAnswer.value = scene.example;
+      state.answers[scene.id] = scene.example;
+      state.answerNotice = "";
+      queueDraftSave();
+      elements.profileAnswer.focus();
+    });
     elements.profileAnswer.addEventListener("input", () => {
       if (state.sceneIndex >= SCENES.length) return;
       state.answers[SCENES[state.sceneIndex].id] = elements.profileAnswer.value.slice(0, MAX_ANSWER_LENGTH);
       state.answerNotice = "";
       queueDraftSave();
     });
-    elements.extraPhrase.addEventListener("input", () => {
-      state.extraPhrase = elements.extraPhrase.value.slice(0, 240);
-      queueDraftSave();
-    });
-    elements.extraAvoid.addEventListener("input", () => {
-      state.extraAvoid = elements.extraAvoid.value.slice(0, 240);
-      queueDraftSave();
-    });
     elements.punctuation.addEventListener("change", () => {
       state.punctuation = PUNCTUATION_VALUES.has(elements.punctuation.value) ? elements.punctuation.value : "adaptive";
       queueDraftSave();
+      renderCandidate();
     });
     elements.emoji.addEventListener("change", () => {
       state.emoji = EMOJI_VALUES.has(elements.emoji.value) ? elements.emoji.value : "adaptive";
       queueDraftSave();
+      renderCandidate();
     });
-    elements.emojiFavorites.addEventListener("click", event => {
-      const button = event.target.closest("[data-emoji]");
-      if (!button || !KNOWN_EMOJIS.includes(button.dataset.emoji)) return;
-      const emoji = button.dataset.emoji;
-      state.emojiFavorites = state.emojiFavorites.includes(emoji)
-        ? state.emojiFavorites.filter(item => item !== emoji)
-        : [...state.emojiFavorites, emoji];
-      renderEmojiFavorites();
-      queueDraftSave();
-    });
-    elements.trialButton.addEventListener("click", () => void trialProfile());
     elements.profileSave.addEventListener("click", () => void saveProfile());
     elements.profileRestart.addEventListener("click", restartWizard);
     elements.savePaste.addEventListener("click", () => void savePasteReference());
-    elements.rememberSample.addEventListener("click", () => void rememberSample());
-    elements.refreshSamples.addEventListener("click", () => void loadSamples());
     elements.chatToggle.addEventListener("click", () => {
       state.chatOpen = !state.chatOpen;
       renderChat();
@@ -1182,12 +941,10 @@
       profileAssistant: byId("profile-assistant"),
       profileState: byId("profile-assistant-state"),
       modeWizard: byId("profileModeWizard"),
-      modePaste: byId("profileModePaste"),
       profileCollapse: byId("profileCollapse"),
       wizardPanel: byId("profileWizardPanel"),
       pastePanel: byId("profilePastePanel"),
       profileProgress: byId("profileProgress"),
-      profileDraftState: byId("profileDraftState"),
       questionBlock: byId("profileQuestionBlock"),
       profileQuestion: byId("profileQuestion"),
       profileExample: byId("profileExample"),
@@ -1197,26 +954,14 @@
       profileNext: byId("profileNext"),
       finishPanel: byId("profileFinishPanel"),
       answerSummary: byId("profileAnswerSummary"),
-      extraPhrase: byId("profileExtraPhrase"),
-      extraAvoid: byId("profileExtraAvoid"),
       punctuation: byId("profilePunctuation"),
       emoji: byId("profileEmoji"),
-      emojiFavorites: byId("profileEmojiFavorites"),
       candidatePreview: byId("profileCandidatePreview"),
-      trialText: byId("profileTrialText"),
-      trialButton: byId("profileTrial"),
-      trialUsage: byId("profileTrialUsage"),
-      trialResult: byId("profileTrialResult"),
       profileSave: byId("profileSave"),
       profileRestart: byId("profileRestart"),
       reference: byId("reference"),
       savePaste: byId("profileSavePaste"),
-      sampleContext: byId("profileSampleContext"),
-      rememberSample: byId("profileRememberSample"),
       pasteState: byId("profilePasteState"),
-      refreshSamples: byId("profileRefreshSamples"),
-      sampleList: byId("profileSampleList"),
-      samplesState: byId("profileSamplesState"),
       chatPanel: byId("zili-chat-panel"),
       chatToggle: byId("zili-chat-toggle"),
       chatCollapse: byId("zili-chat-collapse"),
@@ -1247,8 +992,8 @@
     const savedChars = String(settings?.reference || "").trim().length;
     if (!settings) setProfileNotice("暂时读不到口吻档案，重开弹窗再看一次", true);
     else setProfileNotice(state.hasSavedProfile
-      ? `已有口吻档案 ${savedChars} 字，点“直接粘贴样例”可查看和修改`
-      : "这个浏览器里还没有口吻档案：回答 6 个场景，或直接粘贴样例");
+      ? `已有口吻档案 ${savedChars} 字，下面可以直接改`
+      : "这个浏览器里还没有口吻档案：点“一步步设置口吻”回答 10 个问题，或直接粘贴你写过的话");
     renderMode();
     renderWizard();
     renderChat();
@@ -1259,7 +1004,7 @@
   function notifySettingsSaved(nextSettings, meta = {}) {
     applySettingsPreferences(nextSettings || {});
     if (!state.profileStarted) {
-      setProfileNotice(state.hasSavedProfile ? "表达档案已建立，可补充样例让它更准" : "先建立我的表达，也可以直接粘贴样例");
+      setProfileNotice(state.hasSavedProfile ? `已有口吻档案 ${String(nextSettings?.reference || "").trim().length} 字，下面可以直接改` : "这个浏览器里还没有口吻档案：点“一步步设置口吻”回答 10 个问题，或直接粘贴你写过的话");
       renderMode();
     }
     if (
