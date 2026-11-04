@@ -541,9 +541,13 @@
   }
 
   function platformEmojiInstruction(input = {}) {
-    const platform = PLATFORM_EMOJI[platformFromHost(input.platformHost)];
+    const platformId = platformFromHost(input.platformHost);
+    const platform = PLATFORM_EMOJI[platformId];
     const emoji = input.settings?.emoji;
     if (!platform || emoji === "none") return "";
+    // 小红书只有发笔记的编辑器（creator.xiaohongshu.com）会把 [笑哭R] 转成表情；评论框不转，会以文字留下，回复评论时用普通 emoji。
+    const noteEditor = /^creator\./i.test(String(input.platformHost || "")) && input.mode !== "comment";
+    if (platformId === "xiaohongshu" && !noteEditor) return "当前在小红书评论区。评论框不认 [笑哭R] 这类表情码，要加表情只用普通 emoji 字符（如 😂 😭 👍），不要写任何方括号表情码。";
     return `当前在${platform.label}。要加表情时，用${platform.label}自己的方括号表情码，不用通用 emoji 字符；只能从这些里选：${platform.codes}。表情码放句尾或停顿处，${emoji === "often" ? "一条最多两个" : "一条最多一个，语境不合适就不加"}。`;
   }
 

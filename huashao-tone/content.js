@@ -2271,14 +2271,14 @@
   // 小红书编辑器把 [笑哭R] 这类表情码转成表情图时，会顺带吃掉表情码前面的一个字（“有点东西[笑哭R]”变成“有点东[表情]”）。
   // 写进去之前在表情码前垫一个空格，被吃掉的是空格，字不会少。
   function protectPlatformEmoji(text) {
-    if (!/(^|\.)xiaohongshu\.com$/.test(location.hostname)) return text;
+    if (!/^creator\.xiaohongshu\.com$/.test(location.hostname)) return text;
     return String(text).replace(/([^\s\[\]])(\[[\u4e00-\u9fffA-Za-z]{1,6}R\]|\[doge\])/g, "$1 $2");
   }
 
   // 模型偶尔会编一个小红书不认的表情码（如 [蹲后续R]），编辑器不转换，就以文字留在正文里。
   // 写完稍等一下看看：还以文字留着的表情码，整段重写一遍把它们去掉。用户这期间动过就不碰。
   function dropUnknownPlatformEmoji(element, appliedText) {
-    if (!/(^|\.)xiaohongshu\.com$/.test(location.hostname)) return;
+    if (!/^creator\.xiaohongshu\.com$/.test(location.hostname)) return;
     const codes = [...new Set(String(appliedText).match(/\[[\u4e00-\u9fffA-Za-z]{1,6}R\]/g) || [])];
     if (!codes.length) return;
     setTimeout(() => {
